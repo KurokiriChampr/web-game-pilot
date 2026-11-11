@@ -1,6 +1,7 @@
 /* =========================================================
    刻の女神と止まった世界 - スタイル
-   外部フォント・画像は使わず、CSSのグラデーションと絵文字のみで装飾
+   外部フォントは使わず、CSSのグラデーションと絵文字で装飾。
+   背景画像は assets/manifest.json で指定されたファイルがあるときだけ重ねる。
    ========================================================= */
 
 :root {
@@ -32,6 +33,7 @@ body.theme-ruins        { --bg-1: #2a1d12; --bg-2: #6b4a2a; --bg-3: #c39a5e; }
 body.theme-ending-true  { --bg-1: #3a2350; --bg-2: #c46a6a; --bg-3: #ffd27a; --accent: #fff1b8; }
 body.theme-ending-normal{ --bg-1: #060820; --bg-2: #1c2160; --bg-3: #5a5aa8; }
 body.theme-ending-bad   { --bg-1: #050505; --bg-2: #1a1a22; --bg-3: #34303f; --accent: #b9b4c9; }
+body.theme-ending-still { --bg-1: #0a0a24; --bg-2: #2a2450; --bg-3: #6a5a8c; --accent: #d9ccff; }
 
 /* ---------- ベース ---------- */
 *,
@@ -87,6 +89,13 @@ body::before {
 body.theme-day .sky,
 body.theme-ruins .sky,
 body.theme-ending-true .sky { opacity: 0.2; }
+body.theme-title .sky { animation: twinkle 7s ease-in-out infinite; }
+body.has-bg .sky { opacity: 0; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.3; }
+}
 
 button {
   font: inherit;
@@ -164,8 +173,31 @@ button {
   -webkit-backdrop-filter: blur(6px);
 }
 
+.title-emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  margin: 0 auto;
+}
+/* 止まった文字盤：目盛りの輪。針だけが、ごくゆっくり進む */
+.title-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from -1deg, rgba(255, 210, 122, 0.85) 0 2deg, transparent 2deg 30deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 46px, #000 47px 54px, transparent 55px);
+  mask: radial-gradient(circle, transparent 0 46px, #000 47px 54px, transparent 55px);
+  box-shadow: 0 0 24px rgba(255, 210, 122, 0.25);
+  animation: ringTurn 240s linear infinite;
+}
+@keyframes ringTurn {
+  to { transform: rotate(360deg); }
+}
 .title-clock {
-  font-size: 3.5rem;
+  position: relative;
+  font-size: 3.2rem;
   line-height: 1;
   animation: hourglass 6s ease-in-out infinite;
 }
@@ -207,6 +239,28 @@ button {
   gap: 12px;
   max-width: 280px;
   margin: 0 auto 28px;
+}
+.title-actions-row {
+  display: flex;
+  gap: 12px;
+}
+.title-actions-row .btn {
+  flex: 1;
+  padding-inline: 10px;
+}
+.title-card > * {
+  animation: fadeUp 0.7s ease both;
+}
+.title-card > *:nth-child(2) { animation-delay: 0.08s; }
+.title-card > *:nth-child(3) { animation-delay: 0.16s; }
+.title-card > *:nth-child(4) { animation-delay: 0.24s; }
+.title-card > *:nth-child(5) { animation-delay: 0.32s; }
+.title-card > *:nth-child(6) { animation-delay: 0.4s; }
+.title-card > *:nth-child(7) { animation-delay: 0.48s; }
+.scene-rate {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 
 .endings {
@@ -345,8 +399,17 @@ button {
 }
 .para {
   margin: 0 0 1em;
-  opacity: 0;
-  animation: fadeUp 0.6s ease forwards;
+}
+/* 文字送り：未表示の部分も場所だけ確保しておき、行が動かないようにする */
+.para-rest {
+  visibility: hidden;
+}
+.skip-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.45);
+  animation: twinkle 2.4s ease-in-out infinite;
 }
 
 @keyframes fadeUp {
@@ -425,6 +488,7 @@ button {
 .ending-box[data-kind="true"] .ending-name::before  { content: "🌅 "; }
 .ending-box[data-kind="normal"] .ending-name::before{ content: "🌟 "; }
 .ending-box[data-kind="bad"] .ending-name::before   { content: "🕳️ "; }
+.ending-box[data-kind="another"] .ending-name::before { content: "🫧 "; }
 .ending-progress {
   margin: 0 0 18px;
   font-size: 0.85rem;
@@ -437,10 +501,386 @@ button {
   gap: 10px;
 }
 
+/* ---------- ボタン（追加分） ---------- */
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-icon {
+  min-width: 40px;
+  padding-inline: 8px;
+}
+
+/* ---------- 背景画像レイヤー ---------- */
+.bg-layer,
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+.bg-img.is-active { opacity: 1; }
+/* 文字を読みやすくするための薄い幕 */
+.bg-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 6, 22, 0.35), rgba(6, 6, 22, 0.7));
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+body.has-bg .bg-shade { opacity: 1; }
+
+/* シーンカード上部のビジュアル（画像があるときだけ表示） */
+.scene-visual {
+  display: block;
+  width: calc(100% + 44px);
+  margin: -24px -22px 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: zoom-in;
+}
+.scene-visual img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 42vh;
+  object-fit: cover;
+  animation: fadeIn 0.9s ease both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* 背景鑑賞モード */
+body.is-peek .screen,
+body.is-peek .fx-layer { visibility: hidden; }
+body.is-peek .bg-shade { opacity: 0; }
+.peek-exit {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 28px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  text-shadow: 0 1px 6px #000;
+  cursor: zoom-out;
+}
+
+/* ---------- シーン演出 ---------- */
+.scene-card.is-entering { animation: cardIn 0.55s ease both; }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.scene-card.is-shaking { animation: shake 0.6s ease both; }
+@keyframes shake {
+  0%, 100% { transform: none; }
+  15% { transform: translate(-7px, 2px); }
+  30% { transform: translate(6px, -2px); }
+  45% { transform: translate(-5px, 1px); }
+  60% { transform: translate(4px, -1px); }
+  80% { transform: translate(-2px, 0); }
+}
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+}
+.flash.is-on { animation: flash 1s ease-out both; }
+@keyframes flash {
+  0%   { opacity: 0.75; }
+  100% { opacity: 0; }
+}
+
+.heart-meter.is-up   { animation: heartUp 0.9s ease; }
+.heart-meter.is-down { animation: heartDown 0.9s ease; }
+@keyframes heartUp {
+  30% { box-shadow: 0 0 0 4px rgba(255, 122, 168, 0.45); transform: scale(1.08); }
+}
+@keyframes heartDown {
+  30% { box-shadow: 0 0 0 4px rgba(140, 150, 200, 0.4); transform: scale(0.94); }
+}
+
+/* 粒子：止まった世界なので、ほとんどは宙に留まったまま、かすかに息づくだけ */
+.fx {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  animation-delay: var(--d);
+}
+.fx-petals,
+.fx-petals-fall {
+  width: calc(12px * var(--s));
+  height: calc(8px * var(--s));
+  border-radius: 80% 10% 80% 10%;
+  background: linear-gradient(135deg, #ffe1ec, #ff9fc0);
+  opacity: 0.6;
+  transform: rotate(var(--r));
+}
+.fx-petals { animation: hover 9s ease-in-out infinite; animation-delay: var(--d); }
+@keyframes hover {
+  0%, 100% { translate: 0 0; opacity: 0.6; }
+  50%      { translate: 0 -3px; opacity: 0.4; }
+}
+/* 時が動き出したあとは、花びらが落ちる */
+.fx-petals-fall {
+  top: -5%;
+  animation: fall 11s linear infinite;
+  animation-delay: var(--d);
+}
+@keyframes fall {
+  from { translate: 0 0; rotate: 0deg; }
+  to   { translate: 8vw 112vh; rotate: 320deg; }
+}
+.fx-motes {
+  width: calc(5px * var(--s));
+  height: calc(5px * var(--s));
+  border-radius: 50%;
+  background: #d8ffb0;
+  box-shadow: 0 0 10px 2px rgba(200, 255, 160, 0.6);
+  animation: glow 6s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 0.75; }
+}
+.fx-embers {
+  top: auto;
+  bottom: -3%;
+  width: calc(4px * var(--s));
+  height: calc(4px * var(--s));
+  border-radius: 50%;
+  background: #ffb060;
+  box-shadow: 0 0 8px 2px rgba(255, 150, 60, 0.7);
+  animation: rise 8s ease-in infinite;
+  animation-delay: var(--d);
+}
+@keyframes rise {
+  0%   { translate: 0 0; opacity: 0; }
+  15%  { opacity: 0.9; }
+  100% { translate: 3vw -70vh; opacity: 0; }
+}
+.fx-dust {
+  width: calc(3px * var(--s));
+  height: calc(3px * var(--s));
+  border-radius: 50%;
+  background: #fff3d0;
+  animation: glow 10s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+
+/* ---------- 通知 ---------- */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(16, 14, 40, 0.92);
+  border: 1px solid rgba(255, 210, 122, 0.5);
+  color: var(--accent);
+  font-size: 0.9rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: fadeUp 0.35s ease both;
+  transition: opacity 0.4s;
+}
+.toast.is-leaving { opacity: 0; }
+
+/* ---------- ダイアログ ---------- */
+.modal {
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  color: var(--text);
+  background: rgba(18, 16, 46, 0.97);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.modal[open] {
+  display: flex;
+  animation: cardIn 0.25s ease both;
+}
+.modal-wide { width: min(640px, calc(100vw - 24px)); }
+.modal::backdrop {
+  background: rgba(4, 4, 16, 0.6);
+  backdrop-filter: blur(3px);
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  padding: 24px 22px 18px;
+  overflow-y: auto;
+}
+.modal-title {
+  margin: 0 0 16px;
+  font-family: var(--font-story);
+  font-size: 1.2rem;
+  color: var(--accent);
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+.modal-note {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+.modal-foot {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.saves-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--choice);
+}
+.save-info { flex: 1; min-width: 0; }
+.save-name {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--accent-2);
+}
+.save-desc {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.save-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.log-list {
+  flex: 1;
+  min-height: 0;
+  max-height: 60dvh;
+  padding: 4px 12px 4px 4px;
+  overflow-y: auto;
+  font-family: var(--font-story);
+  font-size: 0.95rem;
+  line-height: 1.9;
+}
+.log-scene {
+  margin: 18px 0 8px;
+  padding-bottom: 4px;
+  font-size: 1rem;
+  color: var(--accent);
+  border-bottom: 1px dashed var(--card-border);
+}
+.log-scene:first-child { margin-top: 0; }
+.log-para { margin: 0 0 0.7em; }
+.log-choice {
+  margin: 10px 0;
+  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--accent-2);
+  border-left: 3px solid var(--accent-2);
+  background: rgba(159, 216, 255, 0.08);
+  border-radius: 0 8px 8px 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+.field:first-of-type { margin-top: 0; }
+.field label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+.field output { color: var(--accent); }
+.field input[type="range"] {
+  width: 100%;
+  height: 28px;
+  accent-color: var(--accent);
+}
+.field-danger {
+  align-items: flex-start;
+  padding-top: 16px;
+  border-top: 1px dashed var(--card-border);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin-top: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
 /* ---------- スマートフォン ---------- */
 @media (max-width: 480px) {
   .title-card { padding: 32px 18px 24px; }
   .scene-card { padding: 20px 16px 22px; }
+  .scene-visual { width: calc(100% + 32px); margin: -20px -16px 16px; }
   .scene-icon { width: 46px; height: 46px; font-size: 1.5rem; }
   .scene-title { font-size: 1.2rem; }
   .scene-text { font-size: 1rem; line-height: 1.95; }
@@ -451,6 +891,10 @@ button {
   .status-shards { letter-spacing: 0.05em; }
   .status-actions { gap: 6px; }
   .btn-small { padding: 6px 10px; }
+  .btn-label { display: none; }
+  .save-row { flex-direction: column; align-items: stretch; }
+  .save-actions { justify-content: flex-end; }
+  .modal-body { padding: 20px 16px 16px; }
   .ending-actions .btn { width: 100%; }
 }
 

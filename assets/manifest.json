@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "basePath": "assets/",
+  "defaults": { "image": null, "bgm": null },
+  "title": { "image": "images/title.jpg", "bgm": "bgm/title.mp3" },
+  "scenes": {
+    "awakening": { "image": "images/awakening.jpg", "bgm": "bgm/field.mp3" },
+    "meet": { "image": "images/meet.jpg", "bgm": "bgm/tower.mp3" },
+    "explain": { "image": "images/explain.jpg", "bgm": "bgm/tower.mp3" },
+    "village": { "image": "images/village.jpg", "bgm": "bgm/field.mp3" },
+    "bakery": { "image": "images/bakery.jpg", "bgm": "bgm/field.mp3" },
+    "forest": { "image": "images/forest.jpg", "bgm": "bgm/forest.mp3" },
+    "campfire": { "image": "images/campfire.jpg", "bgm": "bgm/night.mp3" },
+    "river": { "image": "images/river.jpg", "bgm": "bgm/river.mp3" },
+    "boat": { "image": "images/boat.jpg", "bgm": "bgm/river.mp3" },
+    "mirror": { "image": "images/mirror.jpg", "bgm": "bgm/river.mp3" },
+    "library": { "image": "images/library.jpg", "bgm": "bgm/ruins.mp3" },
+    "ruins": { "image": "images/ruins.jpg", "bgm": "bgm/ruins.mp3" },
+    "night": { "image": "images/night.jpg", "bgm": "bgm/night.mp3" },
+    "melody": { "image": "images/melody.jpg", "bgm": "bgm/melody.mp3" },
+    "boss": { "image": "images/boss.jpg", "bgm": "bgm/boss.mp3" },
+    "sacrifice": { "image": "images/sacrifice.jpg", "bgm": "bgm/gear.mp3" },
+    "end_true": { "image": "images/end_true.jpg", "bgm": "bgm/ending_true.mp3" },
+    "end_normal": { "image": "images/end_normal.jpg", "bgm": "bgm/ending_normal.mp3" },
+    "end_bad": { "image": "images/end_bad.jpg", "bgm": "bgm/ending_bad.mp3" },
+    "end_still": { "image": "images/end_still.jpg", "bgm": "bgm/ending_still.mp3" }
+  }
+}
