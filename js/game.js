@@ -2,11 +2,16 @@
  * ゲームエンジン
  * 状態管理（シーン・好感度・欠片・フラグ）、画面描画、文字送り、
  * セーブ／ロード、バックログ、設定を担当する。
- * 画像と BGM は js/assets.js（GameAssets）に任せる。
+ * 画面はビジュアルノベル型（全面背景＋立ち絵＋下部メッセージウィンドウ）。
+ * 本文は 1 段落ずつメッセージウィンドウに表示し、タップ / Enter で読み進める。
+ * 画像・立ち絵・BGM は js/assets.js（GameAssets）に任せる。
  * file:// でも動くよう ES Modules は使わず、通常の <script> で読み込む。
  */
 (function () {
   "use strict";
+
+  // 版を上げるときは index.html の data-app-version と ?v= も同じ値にする
+  var VERSION = "2.1";
 
   var STORY = window.STORY;
   var Assets = window.GameAssets;
@@ -33,6 +38,10 @@
   var settings = null;
   var savesMode = "save";
   var typer = { raf: 0, active: false, finish: null };
+  // メッセージウィンドウのページ送り（1 段落 = 1 ページ）
+  var pager = { paras: [], index: 0, pageDone: false, ended: false, instant: false };
+  var OVERLAY_LOCK_MS = 450; // 連打で選択肢を誤って押さないための待ち時間
+  var overlayTimer = 0;
 
   // ---------- localStorage（使えない環境でも落ちないように） ----------
   function storageGet(key) {
@@ -131,7 +140,7 @@
   }
 
   function inGame() {
-    return !els.gameScreen.hidden;
+    return !!els.gameScreen && !els.gameScreen.hidden;
   }
 
   // ---------- 記録（エンディング・既読シーン） ----------
@@ -218,6 +227,11 @@
     if (!dialog.open) return;
     if (typeof dialog.close === "function") dialog.close();
     else dialog.removeAttribute("open");
+    focusTextbox();
+  }
+  // ダイアログを閉じたあとはメッセージウィンドウへフォーカスを戻す（Enter でそのまま読み進められる）
+  function focusTextbox() {
+    if (inGame() && !anyDialogOpen()) els.sceneTitle.focus({ preventScroll: true });
   }
   function closeAllDialogs() {
     Array.prototype.forEach.call(document.querySelectorAll("dialog"), closeDialog);
@@ -245,14 +259,46 @@
   }
 
   function playEnterEffect(scene) {
-    replayAnimation(els.sceneCard, "is-entering");
-    els.sceneCard.classList.remove("is-shaking");
-    if (scene.enter === "shake") replayAnimation(els.sceneCard, "is-shaking");
+    replayAnimation(els.textbox, "is-entering");
+    els.gameScreen.classList.remove("is-shaking");
+    if (scene.enter === "shake") replayAnimation(els.gameScreen, "is-shaking");
     if (scene.enter === "flash") replayAnimation(els.flash, "is-on");
+  }
+
+  // シーン切替のタイトルバナー（シネマティック演出）
+  function showBanner(stepLabel, title) {
+    els.bannerStep.textContent = stepLabel;
+    els.bannerTitle.textContent = title;
+    replayAnimation(els.sceneBanner, "is-on");
+  }
+
+  // 選択肢・エンディングのオーバーレイ
+  function hideOverlays() {
+    if (overlayTimer) window.clearTimeout(overlayTimer);
+    overlayTimer = 0;
+    els.choiceOverlay.hidden = true;
+    els.endingOverlay.hidden = true;
+    els.choices.textContent = "";
+    els.gameScreen.classList.remove("is-choosing");
+  }
+  function openOverlay(overlay) {
+    overlay.classList.add("is-locked");
+    overlay.hidden = false;
+    els.sceneBanner.classList.remove("is-on"); // バナーが残っていたら片付ける
+    els.gameScreen.classList.add("is-choosing");
+    if (overlayTimer) window.clearTimeout(overlayTimer);
+    overlayTimer = window.setTimeout(function () {
+      overlayTimer = 0;
+      overlay.classList.remove("is-locked");
+    }, OVERLAY_LOCK_MS);
+  }
+  function overlayReady(overlay) {
+    return !overlay.hidden && !overlay.classList.contains("is-locked");
   }
 
   // 背景鑑賞モード（UI を隠して画像だけを見る）
   function setPeek(on) {
+    on = !!on;
     document.body.classList.toggle("is-peek", on);
     els.peekExit.hidden = !on;
     if (on) els.peekExit.focus();
@@ -353,13 +399,17 @@
 
   // ---------- タイトル画面 ----------
   function renderTitle() {
+    // まず画面を確実に切り替える（以降の装飾で失敗してもタイトルには戻れる）
     stopTyping();
+    showScreen("title");
+    hideOverlays();
     setPeek(false);
     setTheme("title");
     setFx("petals");
-    showScreen("title");
+    els.sceneBanner.classList.remove("is-on");
     Assets.setScene("title");
 
+    els.appVersion.textContent = "ver " + VERSION;
     els.continueBtn.hidden = !isValidSave(storageGet(KEYS.auto));
 
     var seen = seenEndings();
@@ -379,7 +429,8 @@
     });
     els.endingCount.textContent = got + " / " + all.length;
     els.sceneRate.textContent = readScenes().length + " / " + Object.keys(STORY.scenes).length;
-    (els.continueBtn.hidden ? els.startBtn : els.continueBtn).focus();
+    els.titleScreen.scrollTop = 0;
+    (els.continueBtn.hidden ? els.startBtn : els.continueBtn).focus({ preventScroll: true });
   }
 
   // ---------- ステータス ----------
@@ -408,11 +459,14 @@
       btn.appendChild(num);
       btn.appendChild(el("span", "choice-text", choice.text));
       btn.addEventListener("click", function () {
-        choose(choice);
+        if (overlayReady(els.choiceOverlay)) choose(choice);
       });
-      btn.style.animationDelay = i * 0.08 + "s";
+      btn.style.animationDelay = 0.15 + i * 0.09 + "s";
       els.choices.appendChild(btn);
     });
+    els.endingOverlay.hidden = true;
+    openOverlay(els.choiceOverlay);
+    els.choiceOverlay.scrollTop = 0;
   }
 
   function showEnding(scene) {
@@ -422,7 +476,58 @@
     els.endingProgress.textContent =
       "見つけたエンディング：" + seen + " / " + STORY.endingCount +
       (seen < STORY.endingCount ? "　――ほかの結末もあるようだ。" : "　――すべての結末を見届けた！");
-    els.endingBox.hidden = false;
+    els.choiceOverlay.hidden = true;
+    openOverlay(els.endingOverlay);
+  }
+
+  /** シーンの本文を最後まで表示し終えたとき（選択肢またはエンディングを出す） */
+  function endOfScene() {
+    if (pager.ended) return;
+    pager.ended = true;
+    var scene = currentScene();
+    if (!scene) return;
+    els.skipBtn.hidden = true;
+    els.nextMark.hidden = true;
+    addTo(KEYS.read, state.scene);
+    if (scene.ending) showEnding(scene);
+    else showChoices(scene);
+  }
+
+  /** いまのページ（段落）をメッセージウィンドウに表示する */
+  function showPage(instant) {
+    var total = pager.paras.length;
+    var last = pager.index >= total - 1;
+    pager.pageDone = false;
+    els.nextMark.hidden = true;
+    els.pageCount.textContent = total > 1 ? pager.index + 1 + " / " + total : "";
+    els.sceneText.scrollTop = 0;
+
+    typeScene(total ? [pager.paras[pager.index]] : [], instant || pager.instant, function () {
+      pager.pageDone = true;
+      if (last) endOfScene();
+      else els.nextMark.hidden = false;
+    });
+  }
+
+  /** タップ / Enter：文字送り中なら全文表示、表示済みなら次のページへ */
+  function advance() {
+    if (!inGame() || !currentScene()) return;
+    if (typer.active) {
+      finishTyping();
+      return;
+    }
+    if (pager.pageDone && !pager.ended && pager.index < pager.paras.length - 1) {
+      pager.index += 1;
+      showPage();
+    }
+  }
+
+  /** 既読シーンのスキップ：最後のページまで飛ばして選択肢を出す */
+  function skipScene() {
+    if (!inGame() || !currentScene() || pager.ended) return;
+    stopTyping();
+    pager.index = Math.max(0, pager.paras.length - 1);
+    showPage(true);
   }
 
   function renderScene() {
@@ -430,11 +535,16 @@
     if (!scene) {
       // 想定外のIDに来た場合はタイトルへ戻す
       storageRemove(KEYS.auto);
+      state = null;
       renderTitle();
       return;
     }
     var id = state.scene;
+    var stepLabel = scene.ending ? "FIN" : "第" + (state.steps + 1) + "幕";
+    var wasRead = readScenes().indexOf(id) !== -1;
 
+    stopTyping();
+    hideOverlays();
     setPeek(false);
     setTheme(scene.theme);
     setFx(scene.fx);
@@ -442,13 +552,14 @@
     renderStatus();
     Assets.setScene(id);
     playEnterEffect(scene);
+    showBanner(stepLabel, scene.title);
 
     els.sceneIcon.textContent = scene.icon || "✨";
+    els.stageIcon.textContent = scene.icon || "✨";
     els.sceneTitle.textContent = scene.title;
-    els.sceneStep.textContent = scene.ending ? "FIN" : "第" + (state.steps + 1) + "幕";
-    els.choices.textContent = "";
-    els.endingBox.hidden = true;
+    els.sceneStep.textContent = stepLabel;
     els.menuSave.disabled = !!scene.ending;
+    els.skipBtn.hidden = !wasRead;
 
     if (scene.ending) {
       addTo(KEYS.endings, scene.ending.id);
@@ -457,18 +568,12 @@
       storageSet(KEYS.auto, state);
     }
 
-    var instant =
-      SPEEDS[settings.textSpeed].cps === 0 ||
-      (settings.skipRead && readScenes().indexOf(id) !== -1);
+    pager.paras = resolve(scene.text, state) || [];
+    pager.index = 0;
+    pager.ended = false;
+    pager.instant = SPEEDS[settings.textSpeed].cps === 0 || (settings.skipRead && wasRead);
+    showPage();
 
-    typeScene(resolve(scene.text, state), instant, function () {
-      addTo(KEYS.read, id);
-      if (scene.ending) showEnding(scene);
-      else showChoices(scene);
-    });
-
-    // 画面上部へ戻す（スマホで長文を読んだ後に便利）
-    window.scrollTo(0, 0);
     els.sceneTitle.focus({ preventScroll: true });
   }
 
@@ -533,8 +638,25 @@
   }
 
   function backToTitle() {
-    closeAllDialogs();
-    renderTitle();
+    try {
+      closeAllDialogs();
+      stopTyping();
+      state = null; // オートセーブは残るので「つづきから」で再開できる
+      renderTitle();
+    } catch (e) {
+      console.error(e);
+      forceTitle();
+    }
+  }
+
+  /** 何が起きてもタイトル画面だけは出す（最終手段） */
+  function forceTitle() {
+    state = null;
+    document.body.classList.remove("is-peek");
+    ["choiceOverlay", "endingOverlay", "gameScreen", "peekExit"].forEach(function (name) {
+      if (els[name]) els[name].hidden = true;
+    });
+    if (els.titleScreen) els.titleScreen.hidden = false;
   }
 
   // ---------- セーブ / ロード ----------
@@ -678,7 +800,7 @@
 
   // ---------- バックログ表示 ----------
   function openLog() {
-    if (!state) return;
+    if (!state || !inGame()) return;
     els.logList.textContent = "";
     state.log.forEach(function (entry) {
       if (entry.k === "c") {
@@ -738,14 +860,6 @@
   // 画像・BGM の状態が変わったときに UI を合わせる
   function onAssetsChange(info) {
     var hasImage = !!info.image;
-    els.sceneVisual.hidden = !hasImage;
-    if (hasImage) {
-      if (els.sceneVisualImg.getAttribute("src") !== info.image) els.sceneVisualImg.src = info.image;
-    } else {
-      els.sceneVisualImg.removeAttribute("src");
-      setPeek(false);
-    }
-    els.menuPeek.hidden = !hasImage;
 
     if (info.manifest === "loading") {
       els.assetStatus.textContent = "画像・BGM を確認しています…";
@@ -753,7 +867,9 @@
       els.assetStatus.textContent = "画像・BGM の設定（assets/manifest.json）を読み込めないため、テキストのみで動作しています。";
     } else {
       els.assetStatus.textContent =
-        "この場面：背景画像 " + (hasImage ? "あり" : "なし") + " ／ BGM " + (info.bgm ? "あり" : "なし");
+        "この場面：背景画像 " + (hasImage ? "あり" : "なし") +
+        " ／ 立ち絵 " + (info.character ? "あり" : "なし") +
+        " ／ BGM " + (info.bgm ? "あり" : "なし");
     }
   }
 
@@ -768,16 +884,16 @@
 
     var onControl = e.target && e.target.closest && e.target.closest("button, input, select, textarea, a");
 
-    if ((e.key === "Enter" || e.key === " ") && typer.active && !onControl) {
+    if ((e.key === "Enter" || e.key === " ") && !onControl) {
       e.preventDefault();
-      finishTyping();
+      if (!e.repeat) advance();
       return;
     }
 
     var n = parseInt(e.key, 10);
     if (n >= 1 && n <= 9) {
       var btns = els.choices.querySelectorAll(".choice");
-      if (btns[n - 1]) {
+      if (btns[n - 1] && overlayReady(els.choiceOverlay)) {
         e.preventDefault();
         btns[n - 1].click();
       }
@@ -790,116 +906,183 @@
     else if (key === "m") setMuted(!settings.muted);
   }
 
-  function init() {
-    els = {
-      titleScreen: $("title-screen"),
-      gameScreen: $("game-screen"),
-      fxLayer: $("fx-layer"),
-      flash: $("flash"),
-      toasts: $("toasts"),
-      startBtn: $("start-btn"),
-      continueBtn: $("continue-btn"),
-      titleLoadBtn: $("title-load-btn"),
-      titleSettingsBtn: $("title-settings-btn"),
-      endingList: $("ending-list"),
-      endingCount: $("ending-count"),
-      sceneRate: $("scene-rate"),
-      shards: $("status-shards"),
-      heartMeter: $("heart-meter"),
-      heartFill: $("heart-fill"),
-      logBtn: $("log-btn"),
-      muteBtn: $("mute-btn"),
-      menuBtn: $("menu-btn"),
-      sceneCard: $("scene-card"),
-      sceneVisual: $("scene-visual"),
-      sceneVisualImg: $("scene-visual-img"),
-      sceneIcon: $("scene-icon"),
-      sceneTitle: $("scene-title"),
-      sceneStep: $("scene-step"),
-      sceneText: $("scene-text"),
-      skipHint: $("skip-hint"),
-      choices: $("choices"),
-      endingBox: $("ending-box"),
-      endingName: $("ending-name"),
-      endingProgress: $("ending-progress"),
-      endingRestart: $("ending-restart"),
-      endingLoad: $("ending-load"),
-      endingTitle: $("ending-title"),
-      peekExit: $("peek-exit"),
-      menuDialog: $("menu-dialog"),
-      menuSave: $("menu-save"),
-      menuLoad: $("menu-load"),
-      menuLog: $("menu-log"),
-      menuSettings: $("menu-settings"),
-      menuPeek: $("menu-peek"),
-      menuRestart: $("menu-restart"),
-      menuTitle: $("menu-title"),
-      savesDialog: $("saves-dialog"),
-      savesHeading: $("saves-heading"),
-      savesList: $("saves-list"),
-      logDialog: $("log-dialog"),
-      logList: $("log-list"),
-      settingsDialog: $("settings-dialog"),
-      setSpeed: $("set-speed"),
-      setSpeedLabel: $("set-speed-label"),
-      setSkip: $("set-skip"),
-      setVolume: $("set-volume"),
-      setVolumeLabel: $("set-volume-label"),
-      setMute: $("set-mute"),
-      setImages: $("set-images"),
-      assetStatus: $("asset-status"),
-      resetData: $("reset-data")
-    };
-
-    settings = loadSettings();
-
-    // タイトル
-    els.startBtn.addEventListener("click", startNew);
-    els.continueBtn.addEventListener("click", continueGame);
-    els.titleLoadBtn.addEventListener("click", function () {
-      openSaves("load");
-    });
-    els.titleSettingsBtn.addEventListener("click", openSettings);
-
-    // ステータスバー・メニュー
-    els.logBtn.addEventListener("click", openLog);
-    els.muteBtn.addEventListener("click", function () {
-      setMuted(!settings.muted);
-    });
-    els.menuBtn.addEventListener("click", function () {
-      openDialog(els.menuDialog);
-    });
-    els.menuSave.addEventListener("click", function () {
+  // ---------- ボタン操作（data-action をまとめて受ける） ----------
+  // ボタンごとに addEventListener せず、document で一括して受ける。
+  // 1 つの要素が欠けていても、ほかのボタンの動作が巻き添えで止まらない。
+  var ACTIONS = {
+    start: startNew,
+    continue: continueGame,
+    restart: restart,
+    title: backToTitle,
+    skip: skipScene,
+    reset: resetData,
+    settings: openSettings,
+    log: openLog,
+    save: function () {
       openSaves("save");
-    });
-    els.menuLoad.addEventListener("click", function () {
+    },
+    load: function () {
       openSaves("load");
-    });
-    els.menuLog.addEventListener("click", openLog);
-    els.menuSettings.addEventListener("click", openSettings);
-    els.menuPeek.addEventListener("click", function () {
+    },
+    mute: function () {
+      setMuted(!settings.muted);
+    },
+    menu: function () {
+      openDialog(els.menuDialog);
+    },
+    peek: function () {
       closeAllDialogs();
       setPeek(true);
-    });
-    els.menuRestart.addEventListener("click", restart);
-    els.menuTitle.addEventListener("click", backToTitle);
-
-    // エンディング
-    els.endingRestart.addEventListener("click", restart);
-    els.endingLoad.addEventListener("click", function () {
-      openSaves("load");
-    });
-    els.endingTitle.addEventListener("click", backToTitle);
-
-    // 本文をタップすると全文表示
-    els.sceneCard.addEventListener("click", function (e) {
-      if (typer.active && !(e.target.closest && e.target.closest("button, a"))) finishTyping();
-    });
-    els.sceneVisual.addEventListener("click", function () {
-      setPeek(true);
-    });
-    els.peekExit.addEventListener("click", function () {
+    },
+    "peek-exit": function () {
       setPeek(false);
+    }
+  };
+
+  function onActionClick(e) {
+    var target = e.target && e.target.closest ? e.target.closest("[data-action]") : null;
+    if (!target || target.disabled) return;
+    var name = target.getAttribute("data-action");
+    var overlay = target.closest(".overlay");
+    if (overlay && overlay.classList.contains("is-locked")) return; // 表示直後の誤タップを無視
+    var action = ACTIONS[name];
+    if (!action) return;
+    try {
+      action();
+    } catch (err) {
+      console.error("操作に失敗しました:", name, err);
+      if (name === "title") forceTitle();
+    }
+  }
+
+  // ---------- 版の確認 ----------
+  // デプロイ直後などに「古い index.html ＋ 新しい js」の組み合わせで読み込まれると、
+  // 画面の部品が足りずボタンが反応しなくなる。検出したら一度だけ読み込み直し、
+  // それでも直らなければ再読み込みの案内を出す。
+  var ELEMENT_IDS = {
+    titleScreen: "title-screen",
+    gameScreen: "game-screen",
+    fxLayer: "fx-layer",
+    flash: "flash",
+    toasts: "toasts",
+    startBtn: "start-btn",
+    continueBtn: "continue-btn",
+    appVersion: "app-version",
+    settingsVersion: "settings-version",
+    endingList: "ending-list",
+    endingCount: "ending-count",
+    sceneRate: "scene-rate",
+    shards: "status-shards",
+    heartMeter: "heart-meter",
+    heartFill: "heart-fill",
+    muteBtn: "mute-btn",
+    stage: "stage",
+    stageIcon: "stage-icon",
+    sceneBanner: "scene-banner",
+    bannerStep: "banner-step",
+    bannerTitle: "banner-title",
+    choiceOverlay: "choice-overlay",
+    choices: "choices",
+    endingOverlay: "ending-overlay",
+    endingBox: "ending-box",
+    endingName: "ending-name",
+    endingProgress: "ending-progress",
+    textbox: "textbox",
+    sceneIcon: "scene-icon",
+    sceneTitle: "scene-title",
+    sceneStep: "scene-step",
+    sceneText: "scene-text",
+    skipBtn: "skip-btn",
+    skipHint: "skip-hint",
+    pageCount: "page-count",
+    nextMark: "next-mark",
+    peekExit: "peek-exit",
+    menuDialog: "menu-dialog",
+    menuSave: "menu-save",
+    savesDialog: "saves-dialog",
+    savesHeading: "saves-heading",
+    savesList: "saves-list",
+    logDialog: "log-dialog",
+    logList: "log-list",
+    settingsDialog: "settings-dialog",
+    setSpeed: "set-speed",
+    setSpeedLabel: "set-speed-label",
+    setSkip: "set-skip",
+    setVolume: "set-volume",
+    setVolumeLabel: "set-volume-label",
+    setMute: "set-mute",
+    setImages: "set-images",
+    assetStatus: "asset-status"
+  };
+
+  function pageIsCurrent() {
+    if (document.documentElement.getAttribute("data-app-version") !== VERSION) return false;
+    return Object.keys(ELEMENT_IDS).every(function (name) {
+      return !!els[name];
+    });
+  }
+
+  function freshUrl() {
+    return window.location.pathname + "?v=" + encodeURIComponent(VERSION) + "&t=" + Date.now();
+  }
+
+  function handleStalePage() {
+    var RELOAD_KEY = "chrono-tale-reloaded";
+    var canReload = /^https?:$/.test(window.location.protocol);
+    var tried = true;
+    try {
+      tried = window.sessionStorage.getItem(RELOAD_KEY) === VERSION;
+      if (!tried) window.sessionStorage.setItem(RELOAD_KEY, VERSION);
+    } catch (e) {
+      tried = true; // 記録できない環境では自動の読み込み直しはしない（無限ループ防止）
+    }
+    if (canReload && !tried) {
+      window.location.replace(freshUrl());
+      return;
+    }
+
+    var box = document.createElement("div");
+    box.setAttribute("role", "alert");
+    box.style.cssText =
+      "position:fixed;left:0;right:0;top:0;z-index:9999;padding:14px 16px;text-align:center;" +
+      "font:14px/1.6 system-ui,sans-serif;color:#2a1640;background:#ffd27a;box-shadow:0 4px 16px rgba(0,0,0,.4)";
+    box.appendChild(
+      document.createTextNode("ゲームが更新されました（ver " + VERSION + "）。古い画面が残っているため、再読み込みしてください。 ")
+    );
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "再読み込み";
+    btn.style.cssText = "margin-left:8px;padding:6px 16px;border:0;border-radius:999px;font:inherit;font-weight:700;color:#fff;background:#2a1640;cursor:pointer";
+    btn.addEventListener("click", function () {
+      if (canReload) window.location.replace(freshUrl());
+      else window.location.reload();
+    });
+    box.appendChild(btn);
+    document.body.appendChild(box);
+  }
+
+  function init() {
+    els = {};
+    Object.keys(ELEMENT_IDS).forEach(function (name) {
+      els[name] = $(ELEMENT_IDS[name]);
+    });
+
+    if (!pageIsCurrent()) {
+      handleStalePage();
+      return;
+    }
+
+    settings = loadSettings();
+    els.appVersion.textContent = "ver " + VERSION;
+    els.settingsVersion.textContent = "ver " + VERSION;
+
+    // ボタン（タイトル・HUD・メニュー・エンディング）
+    document.addEventListener("click", onActionClick);
+
+    // ステージやメッセージウィンドウをタップすると読み進める
+    els.gameScreen.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest("button, a, input, .hud, .overlay")) return;
+      advance();
     });
 
     // ダイアログ：閉じるボタンと、枠の外側クリックで閉じる
@@ -909,6 +1092,7 @@
           closeDialog(dialog);
         }
       });
+      dialog.addEventListener("close", focusTextbox); // Esc で閉じた場合
     });
 
     // 設定
@@ -935,7 +1119,6 @@
       Assets.setImagesEnabled(settings.images);
       saveSettings();
     });
-    els.resetData.addEventListener("click", resetData);
 
     document.addEventListener("keydown", onKeyDown);
 

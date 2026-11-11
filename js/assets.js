@@ -1,7 +1,7 @@
 /*
- * アセットマネージャ（背景画像・BGM）
+ * アセットマネージャ（背景画像・キャラクター立ち絵・BGM）
  * ------------------------------------------------------------
- * assets/manifest.json を読み込み、シーンIDに対応する画像と BGM を適用する。
+ * assets/manifest.json を読み込み、シーンIDに対応する画像・立ち絵・BGM を適用する。
  *
  * - マニフェストが無い／読めない（file:// で開いた場合など）ときは何もしない。
  * - マニフェストに書かれたファイルが存在しないときも何もしない。
@@ -26,7 +26,9 @@
   var listeners = [];
 
   var bg = { url: null, token: 0, layers: null, active: 0 };
+  var chara = { url: null, token: 0 };
   var bgm = { url: null, audio: null, token: 0, gain: 1 };
+  var CHAR_POSITIONS = ["left", "center", "right"];
 
   // ---------- 共通 ----------
   function notify() {
@@ -44,6 +46,7 @@
     return {
       manifest: manifestState,
       image: bg.url,
+      character: chara.url,
       bgm: bgm.url,
       muted: settings.muted,
       volume: settings.volume
@@ -74,7 +77,7 @@
     var entry = key === "title" ? manifest.title : manifest.scenes && manifest.scenes[key];
     if (!entry || typeof entry !== "object") entry = {};
     var out = {};
-    ["image", "bgm", "position", "volume"].forEach(function (name) {
+    ["image", "character", "characterPosition", "bgm", "position", "volume"].forEach(function (name) {
       out[name] = Object.prototype.hasOwnProperty.call(entry, name) ? entry[name] : defaults[name];
     });
     return out;
@@ -134,6 +137,69 @@
       var img = new Image();
       img.onload = function () {
         if (token === bg.token) showImage(url, entry.position);
+      };
+      img.onerror = function () {
+        missing[url] = true;
+        tryNext(i + 1);
+      };
+      img.src = url;
+    })(0);
+  }
+
+  // ---------- キャラクター立ち絵 ----------
+  function charImg() {
+    return document.getElementById("char-img");
+  }
+
+  function clearCharacter() {
+    chara.token += 1;
+    var node = charImg();
+    if (node) node.classList.remove("is-active");
+    document.body.classList.remove("has-char");
+    if (!chara.url) return;
+    chara.url = null;
+    notify();
+  }
+
+  function showCharacter(url, position) {
+    var node = charImg();
+    if (!node) return;
+    var pos = CHAR_POSITIONS.indexOf(position) !== -1 ? position : "center";
+    node.classList.remove("is-active");
+    node.setAttribute("data-pos", pos);
+    node.src = url;
+    void node.offsetWidth; // フェードインを最初からやり直す
+    node.classList.add("is-active");
+    chara.url = url;
+    document.body.classList.add("has-char");
+    notify();
+  }
+
+  function applyCharacter(entry) {
+    var list = settings.images ? candidates(entry.character) : [];
+    if (!list.length) {
+      clearCharacter();
+      return;
+    }
+    if (list[0] === chara.url) {
+      // 同じ立ち絵のまま（位置だけ変わることはある）
+      var node = charImg();
+      var pos = CHAR_POSITIONS.indexOf(entry.characterPosition) !== -1 ? entry.characterPosition : "center";
+      if (node) node.setAttribute("data-pos", pos);
+      return;
+    }
+    var token = (chara.token += 1);
+
+    (function tryNext(i) {
+      if (token !== chara.token) return; // 読み込み中に別のシーンへ進んだ
+      if (i >= list.length) {
+        clearCharacter();
+        return;
+      }
+      var url = list[i];
+      var img = new Image();
+      img.onload = function () {
+        if (token === chara.token) showCharacter(url, entry.characterPosition);
       };
       img.onerror = function () {
         missing[url] = true;
@@ -261,6 +327,7 @@
     if (currentKey == null || manifestState !== "ready") return;
     var entry = entryFor(currentKey);
     applyImage(entry);
+    applyCharacter(entry);
     applyBgm(entry);
   }
 

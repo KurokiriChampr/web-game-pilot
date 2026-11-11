@@ -1,20 +1,27 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-app-version="2.1">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="止まった世界の時間を取り戻す、選択肢分岐型テキストアドベンチャー。">
+  <meta name="theme-color" content="#0b0c2a">
   <title>刻（とき）の女神と止まった世界</title>
-  <link rel="stylesheet" href="css/style.css">
+  <!-- 版を上げるときは、下の ?v= と data-app-version、js/game.js の VERSION を同じ値にそろえる -->
+  <link rel="stylesheet" href="css/style.css?v=2.1">
 </head>
 <body class="theme-title">
   <div class="sky" aria-hidden="true"></div>
 
-  <!-- 背景画像（assets/manifest.json で指定されたファイルがあるときだけ表示） -->
+  <!-- 背景画像（assets/manifest.json で指定されたファイルがあるときだけ表示。無ければテーマ別グラデーション） -->
   <div id="bg-layer" class="bg-layer" aria-hidden="true">
     <div class="bg-img"></div>
     <div class="bg-img"></div>
     <div class="bg-shade"></div>
+  </div>
+
+  <!-- キャラクター立ち絵（manifest の character で指定されたファイルがあるときだけ表示） -->
+  <div id="char-layer" class="char-layer" aria-hidden="true">
+    <img id="char-img" class="char-img" alt="">
   </div>
 
   <!-- シーン演出（CSS の粒子） -->
@@ -23,87 +30,117 @@
 
   <!-- タイトル画面 -->
   <main id="title-screen" class="screen title-screen">
-    <div class="title-card">
-      <div class="title-emblem" aria-hidden="true">
-        <div class="title-ring"></div>
-        <div class="title-clock">⏳</div>
-      </div>
-      <p class="title-sub">異世界転生テキストアドベンチャー</p>
-      <h1 class="title-main">刻の女神と<br>止まった世界</h1>
-      <p class="title-lead">
-        目覚めた異世界は、すべての時間が止まっていた。<br>
-        時の女神の少女とともに、三つの欠片を取り戻せ。
-      </p>
-      <div class="title-actions">
-        <button id="start-btn" class="btn btn-primary" type="button">▶ はじめから</button>
-        <button id="continue-btn" class="btn" type="button" hidden>⏯ つづきから</button>
-        <div class="title-actions-row">
-          <button id="title-load-btn" class="btn" type="button">📂 ロード</button>
-          <button id="title-settings-btn" class="btn" type="button">⚙ 設定</button>
+    <div class="title-inner">
+      <header class="title-logo">
+        <div class="title-emblem" aria-hidden="true">
+          <div class="title-ring"></div>
+          <div class="title-clock">⏳</div>
         </div>
-      </div>
+        <p class="title-sub">異世界転生テキストアドベンチャー</p>
+        <h1 class="title-main">刻の女神と<br>止まった世界</h1>
+        <p class="title-lead">
+          目覚めた異世界は、すべての時間が止まっていた。<br>
+          時の女神の少女とともに、三つの欠片を取り戻せ。
+        </p>
+      </header>
+
+      <nav class="title-menu" aria-label="メインメニュー">
+        <button id="start-btn" class="title-btn title-btn-primary" type="button" data-action="start">はじめから</button>
+        <button id="continue-btn" class="title-btn" type="button" data-action="continue" hidden>つづきから</button>
+        <button id="title-load-btn" class="title-btn" type="button" data-action="load">ロード</button>
+        <button id="title-settings-btn" class="title-btn" type="button" data-action="settings">設定</button>
+      </nav>
+
       <section class="endings" aria-labelledby="endings-heading">
         <h2 id="endings-heading" class="endings-heading">見つけたエンディング <span id="ending-count">0 / 4</span></h2>
         <ul id="ending-list" class="ending-list"></ul>
         <p class="scene-rate">読んだシーン <span id="scene-rate">0 / 20</span></p>
       </section>
-      <p class="title-help">選択肢はタップ、またはキーボードの数字キーで選べます。</p>
     </div>
+    <p class="title-foot">
+      <span class="title-help">タップ / Enter で読み進め、選択肢は数字キーでも選べます</span>
+      <span id="app-version" class="title-version">ver 2.1</span>
+    </p>
   </main>
 
   <!-- ゲーム画面 -->
   <div id="game-screen" class="screen game-screen" hidden>
-    <header class="status-bar">
-      <div class="status-item" title="時の欠片">
-        <span class="status-label">欠片</span>
-        <span id="status-shards" class="status-shards" role="img" aria-label="時の欠片">◇◇◇</span>
+    <!-- 上部 HUD -->
+    <header class="hud">
+      <div class="hud-item" title="時の欠片">
+        <span class="hud-label">欠片</span>
+        <span id="status-shards" class="hud-shards" role="img" aria-label="時の欠片">◇◇◇</span>
       </div>
-      <div class="status-item status-heart" title="女神の心">
-        <span class="status-label" aria-hidden="true">💗</span>
+      <div class="hud-item" title="女神の心">
+        <span class="hud-label" aria-hidden="true">💗</span>
         <div id="heart-meter" class="heart-meter" role="meter" aria-label="女神の心" aria-valuemin="0" aria-valuemax="13" aria-valuenow="0">
           <div id="heart-fill" class="heart-fill"></div>
         </div>
       </div>
-      <div class="status-actions">
-        <button id="log-btn" class="btn btn-small btn-icon" type="button" aria-label="バックログ" title="バックログ (L)">📖</button>
-        <button id="mute-btn" class="btn btn-small btn-icon" type="button" aria-label="BGM をミュート" aria-pressed="false" title="ミュート (M)">🔊</button>
-        <button id="menu-btn" class="btn btn-small" type="button" title="メニュー">☰<span class="btn-label"> メニュー</span></button>
+      <div class="hud-actions">
+        <button id="log-btn" class="hud-btn" type="button" data-action="log" aria-label="バックログ" title="バックログ (L)">📖</button>
+        <button id="mute-btn" class="hud-btn" type="button" data-action="mute" aria-label="BGM をミュート" aria-pressed="false" title="ミュート (M)">🔊</button>
+        <button id="menu-btn" class="hud-btn hud-btn-menu" type="button" data-action="menu" title="メニュー">☰<span class="btn-label">メニュー</span></button>
       </div>
     </header>
 
-    <main id="scene-card" class="scene-card">
-      <button id="scene-visual" class="scene-visual" type="button" hidden aria-label="背景を大きく見る">
-        <img id="scene-visual-img" alt="">
-      </button>
+    <!-- ステージ（背景と立ち絵が見える領域。タップで読み進める） -->
+    <div id="stage" class="stage">
+      <!-- 背景画像が無いときに、場面を表す紋章を淡く置く -->
+      <div id="stage-icon" class="stage-icon" aria-hidden="true"></div>
 
-      <div class="scene-head">
-        <span id="scene-icon" class="scene-icon" aria-hidden="true">🌸</span>
-        <div>
-          <p id="scene-step" class="scene-step">第1幕</p>
-          <h2 id="scene-title" class="scene-title" tabindex="-1">シーン名</h2>
+      <!-- シーン切替のタイトルバナー -->
+      <div id="scene-banner" class="scene-banner" aria-hidden="true">
+        <p id="banner-step" class="banner-step"></p>
+        <p id="banner-title" class="banner-title"></p>
+      </div>
+
+      <!-- 選択肢オーバーレイ -->
+      <div id="choice-overlay" class="overlay choice-overlay" hidden>
+        <div class="overlay-inner">
+          <p class="choice-heading" aria-hidden="true">― どうする？ ―</p>
+          <div id="choices" class="choices" role="group" aria-label="選択肢"></div>
         </div>
       </div>
 
-      <div id="scene-text" class="scene-text"></div>
-      <p id="skip-hint" class="skip-hint" hidden>タップ / Enter で全文表示</p>
+      <!-- エンディングオーバーレイ -->
+      <div id="ending-overlay" class="overlay ending-overlay" hidden>
+        <section id="ending-box" class="ending-box" aria-labelledby="ending-name">
+          <p class="ending-label">― ENDING ―</p>
+          <p id="ending-name" class="ending-name"></p>
+          <p id="ending-progress" class="ending-progress"></p>
+          <div class="ending-actions">
+            <button id="ending-restart" class="btn btn-primary" type="button" data-action="restart">↺ もう一度はじめから</button>
+            <button id="ending-load" class="btn" type="button" data-action="load">📂 ロード</button>
+            <button id="ending-title" class="btn" type="button" data-action="title">🏠 タイトルへ</button>
+          </div>
+        </section>
+      </div>
+    </div>
 
-      <div id="choices" class="choices"></div>
-
-      <section id="ending-box" class="ending-box" hidden>
-        <p class="ending-label">― ENDING ―</p>
-        <p id="ending-name" class="ending-name"></p>
-        <p id="ending-progress" class="ending-progress"></p>
-        <div class="ending-actions">
-          <button id="ending-restart" class="btn btn-primary" type="button">↺ もう一度はじめから</button>
-          <button id="ending-load" class="btn" type="button">📂 ロード</button>
-          <button id="ending-title" class="btn" type="button">🏠 タイトルへ</button>
+    <!-- メッセージウィンドウ -->
+    <section id="textbox" class="textbox" aria-label="本文">
+      <div class="textbox-inner">
+        <div class="textbox-head">
+          <div class="nameplate">
+            <span id="scene-icon" class="nameplate-icon" aria-hidden="true">🌸</span>
+            <h2 id="scene-title" class="nameplate-name" tabindex="-1">シーン名</h2>
+          </div>
+          <p id="scene-step" class="scene-step">第1幕</p>
+          <button id="skip-btn" class="skip-btn" type="button" data-action="skip" hidden title="既読のシーンを選択肢まで飛ばす">⏭ スキップ</button>
         </div>
-      </section>
-    </main>
+        <div id="scene-text" class="scene-text"></div>
+        <div class="textbox-foot">
+          <span id="skip-hint" class="skip-hint" hidden>タップ / Enter で全文表示</span>
+          <span id="page-count" class="page-count" aria-hidden="true"></span>
+          <span id="next-mark" class="next-mark" aria-hidden="true" hidden>▼</span>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- 背景鑑賞モード（タップで戻る） -->
-  <button id="peek-exit" class="peek-exit" type="button" hidden>タップで戻る</button>
+  <button id="peek-exit" class="peek-exit" type="button" data-action="peek-exit" hidden>タップで戻る</button>
 
   <!-- 通知 -->
   <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
@@ -113,13 +150,13 @@
     <div class="modal-body">
       <h2 id="menu-heading" class="modal-title">メニュー</h2>
       <div class="menu-list">
-        <button id="menu-save" class="btn" type="button">💾 セーブ</button>
-        <button id="menu-load" class="btn" type="button">📂 ロード</button>
-        <button id="menu-log" class="btn" type="button">📖 バックログ</button>
-        <button id="menu-settings" class="btn" type="button">⚙ 設定</button>
-        <button id="menu-peek" class="btn" type="button" hidden>🖼 背景を見る</button>
-        <button id="menu-restart" class="btn" type="button">↺ 最初から</button>
-        <button id="menu-title" class="btn" type="button">🏠 タイトルへ</button>
+        <button id="menu-save" class="btn" type="button" data-action="save">💾 セーブ</button>
+        <button id="menu-load" class="btn" type="button" data-action="load">📂 ロード</button>
+        <button id="menu-log" class="btn" type="button" data-action="log">📖 バックログ</button>
+        <button id="menu-settings" class="btn" type="button" data-action="settings">⚙ 設定</button>
+        <button id="menu-peek" class="btn" type="button" data-action="peek">🖼 背景を見る</button>
+        <button id="menu-restart" class="btn" type="button" data-action="restart">↺ 最初から</button>
+        <button id="menu-title" class="btn" type="button" data-action="title">🏠 タイトルへ</button>
       </div>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
@@ -174,21 +211,22 @@
       </label>
       <label class="check">
         <input id="set-images" type="checkbox" checked>
-        <span>背景画像を表示する</span>
+        <span>背景画像・立ち絵を表示する</span>
       </label>
       <p id="asset-status" class="modal-note"></p>
 
       <div class="field field-danger">
-        <button id="reset-data" class="btn btn-small" type="button">🗑 セーブと記録をすべて消去</button>
+        <button id="reset-data" class="btn btn-small" type="button" data-action="reset">🗑 セーブと記録をすべて消去</button>
       </div>
+      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 2.1</span></p>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
       </div>
     </div>
   </dialog>
 
-  <script src="js/story.js"></script>
-  <script src="js/assets.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/story.js?v=2.1"></script>
+  <script src="js/assets.js?v=2.1"></script>
+  <script src="js/game.js?v=2.1"></script>
 </body>
 </html>
