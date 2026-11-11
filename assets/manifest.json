@@ -1,12 +1,35 @@
 {
-  "version": 1,
+  "version": 2,
   "basePath": "assets/",
   "defaults": { "image": null, "bgm": null },
   "title": { "image": "images/title.jpg", "bgm": "bgm/title.mp3" },
+  "backgrounds": {
+    "tower_foot": { "image": "images/bg/tower_foot.webp", "position": "50% 40%", "positionPortrait": "50% 45%" }
+  },
+  "characters": {
+    "rine": {
+      "base": "images/chara/rine/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "surprised": "stand_surprised.webp",
+            "wry": "stand_wry.webp",
+            "serious": "stand_serious.webp"
+          },
+          "halo": { "x": 50, "y": 22, "size": 46 }
+        },
+        "sit": {
+          "exprs": { "down": "sit_down.webp", "surprised": "sit_surprised.webp" },
+          "halo": { "x": 52, "y": 30, "size": 40 }
+        }
+      }
+    }
+  },
   "scenes": {
     "awakening": { "image": "images/awakening.jpg", "bgm": "bgm/field.mp3" },
-    "meet": { "image": "images/meet.jpg", "bgm": "bgm/tower.mp3" },
-    "explain": { "image": "images/explain.jpg", "bgm": "bgm/tower.mp3" },
+    "meet": { "image": "images/meet.jpg", "position": "50% 35%", "positionPortrait": "50% 50%", "bgm": "bgm/tower.mp3" },
+    "explain": { "image": "images/explain.jpg", "position": "50% 40%", "positionPortrait": "56% 50%", "bgm": "bgm/tower.mp3" },
     "village": { "image": "images/village.jpg", "bgm": "bgm/field.mp3" },
     "bakery": { "image": "images/bakery.jpg", "bgm": "bgm/field.mp3" },
     "forest": { "image": "images/forest.jpg", "bgm": "bgm/forest.mp3" },

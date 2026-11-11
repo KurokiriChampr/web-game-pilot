@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja" data-app-version="2.1">
+<html lang="ja" data-app-version="3.0-p1">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0b0c2a">
   <title>刻（とき）の女神と止まった世界</title>
   <!-- 版を上げるときは、下の ?v= と data-app-version、js/game.js の VERSION を同じ値にそろえる -->
-  <link rel="stylesheet" href="css/style.css?v=2.1">
+  <link rel="stylesheet" href="css/style.css?v=3.0-p1">
 </head>
 <body class="theme-title">
   <div class="sky" aria-hidden="true"></div>
@@ -19,10 +19,9 @@
     <div class="bg-shade"></div>
   </div>
 
-  <!-- キャラクター立ち絵（manifest の character で指定されたファイルがあるときだけ表示） -->
-  <div id="char-layer" class="char-layer" aria-hidden="true">
-    <img id="char-img" class="char-img" alt="">
-  </div>
+  <!-- キャラクター立ち絵（複数枠。js/assets.js が .chara[data-id][data-pos] を出し入れする。
+       対応するファイルがあるときだけ表示。光輪は画像ではなく SVG の別要素） -->
+  <div id="char-layer" class="char-layer" aria-hidden="true" data-count="0"></div>
 
   <!-- シーン演出（CSS の粒子） -->
   <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
@@ -59,7 +58,7 @@
     </div>
     <p class="title-foot">
       <span class="title-help">タップ / Enter で読み進め、選択肢は数字キーでも選べます</span>
-      <span id="app-version" class="title-version">ver 2.1</span>
+      <span id="app-version" class="title-version">ver 3.0-p1</span>
     </p>
   </main>
 
@@ -122,9 +121,12 @@
     <section id="textbox" class="textbox" aria-label="本文">
       <div class="textbox-inner">
         <div class="textbox-head">
-          <div class="nameplate">
+          <!-- 名前札：話者がいるページは話者名、従来形式のシーンではシーン名。
+               シーン名の見出し（フォーカス先）は常に残す -->
+          <div id="nameplate" class="nameplate">
             <span id="scene-icon" class="nameplate-icon" aria-hidden="true">🌸</span>
             <h2 id="scene-title" class="nameplate-name" tabindex="-1">シーン名</h2>
+            <span id="speaker-name" class="nameplate-speaker" hidden></span>
           </div>
           <p id="scene-step" class="scene-step">第1幕</p>
           <button id="skip-btn" class="skip-btn" type="button" data-action="skip" hidden title="既読のシーンを選択肢まで飛ばす">⏭ スキップ</button>
@@ -218,15 +220,16 @@
       <div class="field field-danger">
         <button id="reset-data" class="btn btn-small" type="button" data-action="reset">🗑 セーブと記録をすべて消去</button>
       </div>
-      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 2.1</span></p>
+      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 3.0-p1</span></p>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
       </div>
     </div>
   </dialog>
 
-  <script src="js/story.js?v=2.1"></script>
-  <script src="js/assets.js?v=2.1"></script>
-  <script src="js/game.js?v=2.1"></script>
+  <script src="js/story.js?v=3.0-p1"></script>
+  <script src="js/stage.js?v=3.0-p1"></script>
+  <script src="js/assets.js?v=3.0-p1"></script>
+  <script src="js/game.js?v=3.0-p1"></script>
 </body>
 </html>

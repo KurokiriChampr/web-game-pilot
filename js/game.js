@@ -11,10 +11,11 @@
   "use strict";
 
   // 版を上げるときは index.html の data-app-version と ?v= も同じ値にする
-  var VERSION = "2.1";
+  var VERSION = "3.0-p1";
 
   var STORY = window.STORY;
   var Assets = window.GameAssets;
+  var Stage = window.GameStage; // ページの正規化と舞台状態の計算（js/stage.js）
 
   var KEYS = {
     auto: "chrono-tale-save-v1", // オートセーブ（旧バージョンと互換）
@@ -39,7 +40,8 @@
   var savesMode = "save";
   var typer = { raf: 0, active: false, finish: null };
   // メッセージウィンドウのページ送り（1 段落 = 1 ページ）
-  var pager = { paras: [], index: 0, pageDone: false, ended: false, instant: false };
+  // pages = 正規化済みのページ（{ text, speaker, ... }）、paras = その本文（文字列）だけ
+  var pager = { pages: [], paras: [], staged: false, index: 0, pageDone: false, ended: false, instant: false };
   var OVERLAY_LOCK_MS = 450; // 連打で選択肢を誤って押さないための待ち時間
   var overlayTimer = 0;
 
@@ -169,9 +171,27 @@
     state.log.push(entry);
     if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
   }
+  /** シーンの本文を、いまの状態で展開して正規化する（要素は必ず { text, ... }） */
+  function scenePages(scene, s) {
+    return Stage.normalizePages(resolve(scene.text, s) || []);
+  }
+
+  function speakerName(id) {
+    var c = id && STORY.cast ? STORY.cast[id] : null;
+    return c && typeof c.name === "string" ? c.name : "";
+  }
+
+  // セーブデータに入るので、paras は v2.1 と同じ「文字列の配列」のまま保存する。
+  // 話者名は同じ長さの別配列 who に入れる（話者のいるシーンだけ。旧版はこの項目を無視する）。
   function logScene() {
     var scene = currentScene();
-    pushLog({ k: "s", title: scene.title, paras: resolve(scene.text, state) });
+    var pages = scenePages(scene, state);
+    var entry = { k: "s", title: scene.title, paras: Stage.pageTexts(pages) };
+    var who = pages.map(function (p) {
+      return speakerName(p.speaker);
+    });
+    if (who.some(Boolean)) entry.who = who;
+    pushLog(entry);
   }
 
   // ---------- DOM ----------
@@ -493,6 +513,39 @@
     else showChoices(scene);
   }
 
+  /**
+   * いまのページ位置の舞台状態。前のページからの差分ではなく、毎回 0 ページ目から畳み込んで求めるので、
+   * 1 ページずつ進めても、スキップで飛んでも、ロード直後でも同じ結果になる。
+   * 従来形式のシーン（文字列だけ・stage 指定なし）では null（v2.1 と同じ表示）。
+   */
+  function currentStage() {
+    var scene = currentScene();
+    if (!scene || !pager.staged) return null;
+    return Stage.stageAt(pager.pages, pager.index, { stage: scene.stage, cast: STORY.cast });
+  }
+
+  /** 名前札：話者がいればその名前、地の文では隠す。従来形式のシーンではシーン名のまま */
+  function renderNameplate(stage) {
+    var scene = currentScene();
+    var name = stage ? speakerName(stage.speaker) : "";
+    var cast = stage && stage.speaker && STORY.cast ? STORY.cast[stage.speaker] : null;
+    els.nameplate.classList.toggle("is-speaker", !!stage && !!name);
+    els.nameplate.classList.toggle("is-narration", !!stage && !name);
+    els.speakerName.textContent = name;
+    els.speakerName.hidden = !name;
+    if (name && cast && typeof cast.color === "string") els.nameplate.style.setProperty("--speaker", cast.color);
+    else els.nameplate.style.removeProperty("--speaker");
+    // 新形式のシーンでは、名前札を話者に明け渡すぶん、シーン名を「第 n 幕」の側へ寄せる
+    els.sceneStep.textContent = stage && scene ? pager.stepLabel + "　" + scene.title : pager.stepLabel;
+  }
+
+  function applyStage(enteringScene) {
+    var stage = currentStage();
+    if (enteringScene) Assets.setScene(state.scene, stage);
+    else Assets.setStage(stage);
+    renderNameplate(stage);
+  }
+
   /** いまのページ（段落）をメッセージウィンドウに表示する */
   function showPage(instant) {
     var total = pager.paras.length;
@@ -501,6 +554,7 @@
     els.nextMark.hidden = true;
     els.pageCount.textContent = total > 1 ? pager.index + 1 + " / " + total : "";
     els.sceneText.scrollTop = 0;
+    applyStage(false);
 
     typeScene(total ? [pager.paras[pager.index]] : [], instant || pager.instant, function () {
       pager.pageDone = true;
@@ -550,14 +604,21 @@
     setFx(scene.fx);
     showScreen("game");
     renderStatus();
-    Assets.setScene(id);
+
+    pager.pages = scenePages(scene, state);
+    pager.paras = Stage.pageTexts(pager.pages);
+    pager.staged = Stage.usesStage(scene, resolve(scene.text, state));
+    pager.index = 0;
+    pager.ended = false;
+    pager.stepLabel = stepLabel;
+    applyStage(true); // 背景・立ち絵・BGM をシーン先頭の状態に合わせる
+    if (pager.staged) Assets.preload(Stage.charasUsed(pager.pages, { stage: scene.stage, cast: STORY.cast }));
     playEnterEffect(scene);
     showBanner(stepLabel, scene.title);
 
     els.sceneIcon.textContent = scene.icon || "✨";
     els.stageIcon.textContent = scene.icon || "✨";
     els.sceneTitle.textContent = scene.title;
-    els.sceneStep.textContent = stepLabel;
     els.menuSave.disabled = !!scene.ending;
     els.skipBtn.hidden = !wasRead;
 
@@ -568,9 +629,6 @@
       storageSet(KEYS.auto, state);
     }
 
-    pager.paras = resolve(scene.text, state) || [];
-    pager.index = 0;
-    pager.ended = false;
     pager.instant = SPEEDS[settings.textSpeed].cps === 0 || (settings.skipRead && wasRead);
     showPage();
 
@@ -807,8 +865,15 @@
         els.logList.appendChild(el("p", "log-choice", "▶ " + entry.text));
       } else {
         els.logList.appendChild(el("h3", "log-scene", entry.title));
-        (entry.paras || []).forEach(function (para) {
-          els.logList.appendChild(el("p", "log-para", para));
+        (entry.paras || []).forEach(function (para, i) {
+          // paras は文字列の配列。万一オブジェクトが混ざっていても本文だけを出す
+          var p = el("p", "log-para", typeof para === "string" ? para : Stage.normalizePage(para).text);
+          var who = Array.isArray(entry.who) && typeof entry.who[i] === "string" ? entry.who[i] : "";
+          if (who) {
+            p.classList.add("has-who");
+            p.insertBefore(el("span", "log-who", who), p.firstChild);
+          }
+          els.logList.appendChild(p);
         });
       }
     });
@@ -988,6 +1053,9 @@
     endingName: "ending-name",
     endingProgress: "ending-progress",
     textbox: "textbox",
+    charLayer: "char-layer",
+    nameplate: "nameplate",
+    speakerName: "speaker-name",
     sceneIcon: "scene-icon",
     sceneTitle: "scene-title",
     sceneStep: "scene-step",
