@@ -115,6 +115,51 @@
 - 「⚙ 設定」の「背景画像・立ち絵を表示する」をオフにすると、背景画像と一緒に立ち絵も非表示になります。
 - 全シーン共通で出したい場合は `defaults.character` に書けます（特定のシーンだけ消すときは、そのシーンに `"character": null`）。
 
+## 4b. ver 3.0〜：場所別の背景と、ポーズ・表情つきの立ち絵（`meet` / `explain` で使用中）
+
+ver 3.0 Phase 1 から、マニフェスト（`"version": 2`）に **論理名 → ファイル** の対応表を 2 つ持てます。
+シナリオ（`js/story.js`）は `rine` / `sit` / `surprised` / `tower_foot` のような論理名だけを書き、ファイル名はここで決めます。
+
+```json
+"backgrounds": {
+  "tower_foot": { "image": "images/bg/tower_foot.webp", "position": "50% 40%", "positionPortrait": "50% 45%" }
+},
+"characters": {
+  "rine": {
+    "base": "images/chara/rine/",
+    "poses": {
+      "stand": {
+        "exprs": { "normal": "stand_normal.webp", "surprised": "stand_surprised.webp", "wry": "stand_wry.webp", "serious": "stand_serious.webp" },
+        "halo": { "x": 50, "y": 22, "size": 46 }
+      },
+      "sit": {
+        "exprs": { "down": "sit_down.webp", "surprised": "sit_surprised.webp" },
+        "halo": { "x": 52, "y": 30, "size": 40 }
+      }
+    }
+  }
+}
+```
+
+| 項目 | 説明 |
+| --- | --- |
+| `backgrounds[名前].image` | 背景ファイル（文字列または候補の配列）。**無い・読めないときは、そのシーンの `scenes[id].image` に戻ります** |
+| `position` | 見せる位置（焦点）。CSS の `background-position` と同じ書き方。`scenes[id]` にも書けます |
+| `positionPortrait` | 縦長の画面（スマホ縦持ち）専用の焦点。省略時は `position` を使います |
+| `characters[人物].base` | その人物の立ち絵フォルダ（`basePath` からの相対） |
+| `poses[ポーズ].exprs[表情]` | 立ち絵ファイル（表情ごとに全身 1 枚）。**無い・読めないときは、その人物の枠を表示しません**（ゲームは続行） |
+| `poses[ポーズ].halo` | 光輪の位置。立ち絵の枠に対する %（`x`・`y`＝中心、`size`＝直径÷枠の幅）。省略すると光輪を出しません |
+
+- **現在、立ち絵と `tower_foot` の実ファイルはまだありません**（生成中）。上の表のファイル名で `assets/images/chara/rine/` と `assets/images/bg/` に置けば、コードの変更なしで表示されます。
+- 立ち絵は同じポーズなら同じ大きさのキャンバスで作ってください（表情を切り替えたときに体が動いて見えないように）。画像の下端が画面の下端にそろい、高さは画面の約 9 割です。
+- **光輪は画像に描き込まないでください。** 光輪は SVG の別レイヤーで立ち絵の背面に重ね、明滅・瞬き・消灯をコードで切り替えます。
+- スマホ縦持ちでは、1 人のときは常に中央、2 人以上のときは 75% に縮めて内側（32% / 68%）へ寄せます。
+- 実素材が届く前に配置を確かめたいときは、仮の絵を返すプレビュー用サーバを使えます（リポジトリにダミーファイルは置きません）。
+
+```
+node tools/preview-server.js --placeholders   # http://localhost:8080/
+```
+
 ## 5. 動作のしくみ
 
 - 画像：シーンに入るたびに切り替わります（クロスフェード）。メニューの「🖼 背景を見る」で、HUD とメッセージウィンドウを隠して、背景と立ち絵だけを見られます（タップ、または `Esc` で戻ります）。

@@ -6,6 +6,14 @@
  *   icon:    シーンを表す絵文字
  *   theme:   背景テーマ（css/style.css の body.theme-xxx に対応）
  *   text:    段落の配列、または state を受け取って配列を返す関数
+ *            段落は「文字列」または「{ text, speaker, chara, pose, expr, pos, show, hide, halo, fx }」
+ *            （混在可。文字列は地の文・演出指定なし。ver 3.0 Phase 1 では meet / explain だけが新形式）
+ *              speaker: 話者 ID（STORY.cast のキー）。省略＝地の文（名前札を出さない）
+ *              chara / pose / expr / pos: 立ち絵 1 人ぶんの指定。一度出した立ち絵は次の指定まで続く
+ *              show: [{ chara, pose, expr, pos }]（複数人）、hide: ["rine"] または ["*"]
+ *              halo: 光輪 "weak" | "flicker" | "bright" | "off"、fx: そのページだけの演出（"hop" など）
+ *   stage:   シーン開始時の舞台（省略可）{ bg: 背景の論理名, show, halo }
+ *            論理名とファイルの対応は assets/manifest.json（backgrounds / characters）で持つ
  *   choices: [{ text, next, effects, requires }]
  *     next:     次のシーンID、または state を受け取ってIDを返す関数
  *     effects:  { affection: 数値, shards: 数値, flags: { name: true } }
@@ -31,6 +39,11 @@
     maxAffection: 13,
     endingCount: 4,
     shardNames: ["〈暁の欠片〉", "〈真昼の欠片〉", "〈黄昏の欠片〉"],
+    // 話者（名前札の表示名と色）。chara は立ち絵の人物 ID（assets/manifest.json の characters のキー）
+    cast: {
+      rine: { name: "リーネ", color: "#f2d48a", chara: "rine" },
+      girl: { name: "少女", color: "#f2d48a", chara: "rine" } // 名乗る前の表示名
+    },
     scenes: {
       // 1 ----------------------------------------------------------
       awakening: {
@@ -59,16 +72,30 @@
         title: "時計塔の少女",
         icon: "🕰️",
         theme: "tower",
+        stage: { bg: "tower_foot", halo: "weak" },
         text: function (s) {
           var t = [];
           if (s.flags.petal) {
+            // 文字列のまま＝地の文・演出なし（まだ誰も舞台にいない）
             t.push("指先が触れた瞬間、花びらはほんの少しだけ揺れ、またゆっくりと宙に留まった。まるで、あなたの指からだけ時間がこぼれ落ちたように。");
           }
           t.push(
-            "時計塔の足元。苔むした石段に、ひとりの少女が膝を抱えて座っていた。",
-            "淡い金色の髪。星を閉じ込めたような瞳。背中には、砕けた文字盤のような光の輪が、今にも消えそうに明滅している。",
-            "この止まった世界で、あなた以外に動いているものを見たのは初めてだった。",
-            "少女はゆっくり顔を上げ、目を見開いた。「……動いてる。あなた、どうして動けるの？」"
+            {
+              text: "時計塔の足元。苔むした石段に、ひとりの少女が膝を抱えて座っていた。",
+              chara: "rine", pose: "sit", expr: "down", pos: "center"
+            },
+            {
+              text: "淡い金色の髪。星を閉じ込めたような瞳。背中には、砕けた文字盤のような光の輪が、今にも消えそうに明滅している。",
+              chara: "rine", pose: "sit", expr: "down", halo: "weak"
+            },
+            {
+              text: "この止まった世界で、あなた以外に動いているものを見たのは初めてだった。",
+              chara: "rine", pose: "sit", expr: "down"
+            },
+            {
+              text: "少女はゆっくり顔を上げ、目を見開いた。「……動いてる。あなた、どうして動けるの？」",
+              speaker: "girl", pose: "sit", expr: "surprised", fx: "hop"
+            }
           );
           return t;
         },
@@ -95,12 +122,28 @@
         title: "時の女神リーネ",
         icon: "📜",
         theme: "tower",
+        stage: { bg: "tower_foot", halo: "weak" },
         text: [
-          "「私はリーネ。この世界アストラリアの、時を司る女神……だった、かな」",
-          "少女は苦笑して、背後の時計塔を見上げた。「百年に一度、塔の中にある『時の歯車』を巻き直す儀式があるの。でも、その夜に『時喰い（ときぐい）』っていう影が現れて――」",
-          "歯車の核である三つの欠片、〈暁〉〈真昼〉〈黄昏〉が奪われ、世界中に散らばった。そのときから、アストラリアの時間は止まったままだという。",
-          "「止まった世界で動けるのは、この世界の時間に縛られていない魂だけ。……異世界から来たあなたなら、欠片を取り戻せるかもしれない」",
-          "リーネの光輪が、また弱々しく瞬いた。"
+          {
+            text: "「私はリーネ。この世界アストラリアの、時を司る女神……だった、かな」",
+            speaker: "rine", pose: "stand", expr: "normal", pos: "center"
+          },
+          {
+            text: "少女は苦笑して、背後の時計塔を見上げた。「百年に一度、塔の中にある『時の歯車』を巻き直す儀式があるの。でも、その夜に『時喰い（ときぐい）』っていう影が現れて――」",
+            speaker: "rine", pose: "stand", expr: "wry"
+          },
+          {
+            text: "歯車の核である三つの欠片、〈暁〉〈真昼〉〈黄昏〉が奪われ、世界中に散らばった。そのときから、アストラリアの時間は止まったままだという。",
+            chara: "rine", pose: "stand", expr: "serious"
+          },
+          {
+            text: "「止まった世界で動けるのは、この世界の時間に縛られていない魂だけ。……異世界から来たあなたなら、欠片を取り戻せるかもしれない」",
+            speaker: "rine", pose: "stand", expr: "serious"
+          },
+          {
+            text: "リーネの光輪が、また弱々しく瞬いた。",
+            chara: "rine", pose: "stand", expr: "normal", halo: "flicker"
+          }
         ],
         choices: [
           {

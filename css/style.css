@@ -768,9 +768,42 @@ body.has-char .stage-icon,
   letter-spacing: 0.1em;
 }
 .nameplate-name:focus { outline: none; }
+/* 話者名（新形式のシーン）。色は cast[x].color を --speaker で受ける。色だけに頼らず必ず名前を文字で出す */
+.nameplate-speaker {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-story);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.1em;
+  color: var(--speaker, #ffe9b8);
+}
+.nameplate.is-speaker {
+  color: var(--speaker, #ffe9b8);
+  background: rgb(16, 12, 40);
+  box-shadow: inset 0 -2px 0 var(--speaker, #ffe9b8);
+}
+/* 話者のページ：シーン名の見出しは読み上げとフォーカス用に残し、見た目だけ隠す */
+.nameplate.is-speaker .nameplate-icon { display: none; }
+.nameplate.is-speaker .nameplate-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* 地の文のページ：高さは保ったまま透明にする（ウィンドウの高さを変えない） */
+.nameplate.is-narration { opacity: 0; }
+.nameplate { transition: opacity 0.2s ease; }
 .scene-step {
   margin: 0;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 0.72rem;
   letter-spacing: 0.25em;
   color: var(--accent-2);
@@ -861,10 +894,15 @@ body.has-char .stage-icon,
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center;
+  /* 見せる位置（焦点）は manifest の position / positionPortrait を js/assets.js が変数で渡す */
+  background-position: var(--bg-pos, center);
   background-repeat: no-repeat;
   opacity: 0;
   transition: opacity 0.9s ease;
+}
+/* 縦長の画面では横幅の中央 26% ほどしか見えないので、縦専用の焦点があればそちらを使う */
+@media (orientation: portrait) {
+  .bg-img { background-position: var(--bg-pos-portrait, var(--bg-pos, center)); }
 }
 .bg-img.is-active { opacity: 1; }
 /* 画像の四隅を少し落として、HUD とウィンドウになじませる（画像そのものは暗くしない） */
@@ -890,29 +928,105 @@ body.has-bg .bg-shade { opacity: 1; }
   pointer-events: none;
   overflow: hidden;
 }
-.char-img {
+/* 立ち絵の枠（人物ごと）。中は下から「光輪 → 体」。枠の大きさ＝立ち絵の大きさなので、光輪は % 指定で追随する */
+.chara {
+  --chara-h: min(92dvh, 150vw);
   position: absolute;
   bottom: 0;
   left: 50%;
-  height: min(92dvh, 150vw);
-  max-width: none;
+  height: var(--chara-h);
   translate: -50% 0;
-  object-fit: contain;
-  object-position: bottom center;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.6s ease, transform 0.6s ease, left 0.5s ease;
+  transition: opacity 0.6s ease, transform 0.6s ease, left 0.5s ease, height 0.5s ease, filter 0.3s ease;
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
 }
-.char-img:not([src]) { display: none; }
-.char-img.is-active {
+.chara.is-active {
   opacity: 1;
   transform: none;
 }
-.char-img[data-pos="left"]  { left: 26%; }
-.char-img[data-pos="right"] { left: 74%; }
+.chara[data-pos="left"]  { left: 26%; }
+.chara[data-pos="right"] { left: 74%; }
+.chara-img {
+  position: relative; /* 光輪より手前 */
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: none;
+}
+.chara-img:not([src]) { visibility: hidden; }
+/* 話者でない人物は少し沈める（地の文のページでは全員ふつうの明るさ） */
+.chara.is-dim { filter: brightness(0.6) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45)); }
 /* 選択肢を選ぶあいだは少し沈める */
-body:has(.game-screen.is-choosing) .char-img.is-active { filter: brightness(0.6) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45)); }
+body:has(.game-screen.is-choosing) .chara.is-active { filter: brightness(0.6) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45)); }
+
+/* ページ単位の演出：小さく跳ねる（驚き） */
+.chara.fx-hop { animation: charaHop 0.42s ease-out both; }
+@keyframes charaHop {
+  0%   { transform: translateY(0); }
+  35%  { transform: translateY(-2.2%); }
+  70%  { transform: translateY(0.4%); }
+  100% { transform: translateY(0); }
+}
+
+/* スマートフォン縦：1 人なら常に中央。2 人以上は縮めて内側へ寄せる（画面外へはみ出さない） */
+@media (orientation: portrait) and (max-width: 560px) {
+  .char-layer[data-count="1"] .chara { left: 50%; }
+  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara { height: calc(var(--chara-h) * 0.75); }
+  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara[data-pos="left"]  { left: 32%; }
+  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara[data-pos="right"] { left: 68%; }
+}
+
+/* ---------- 光輪（画像に描かず SVG の別レイヤー。立ち絵の背面に置く。見た目は仮） ---------- */
+.chara-halo {
+  position: absolute;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  pointer-events: none;
+  opacity: 0.5;
+  filter: drop-shadow(0 0 6px rgba(255, 220, 130, 0.9));
+  transition: opacity 0.6s ease, left 0.3s ease, top 0.3s ease, width 0.3s ease;
+}
+.chara-halo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.halo-glow { fill: rgba(255, 228, 150, 0.1); }
+.halo-ring {
+  fill: none;
+  stroke: #ffe9a8;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.halo-ring-inner { stroke-width: 0.8; opacity: 0.8; }
+.halo-tick { stroke: #fff3c9; stroke-width: 1.1; stroke-linecap: round; }
+.halo-crack { fill: none; stroke: #ffffff; stroke-width: 0.6; stroke-linejoin: round; opacity: 0.75; }
+.chara-halo[data-state="weak"]    { animation: haloWeak 3.4s ease-in-out infinite; }
+.chara-halo[data-state="flicker"] { animation: haloFlicker 1.7s linear infinite; }
+.chara-halo[data-state="bright"]  { opacity: 1; filter: drop-shadow(0 0 14px rgba(255, 232, 160, 1)); }
+.chara-halo[data-state="off"]     { opacity: 0; }
+@keyframes haloWeak {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.28; }
+}
+@keyframes haloFlicker {
+  0%, 100% { opacity: 0.5; }
+  12%      { opacity: 0.12; }
+  20%      { opacity: 0.62; }
+  31%      { opacity: 0.08; }
+  44%      { opacity: 0.4; }
+  58%      { opacity: 0.1; }
+  66%      { opacity: 0.55; }
+  82%      { opacity: 0.22; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 明滅を止め、弱い発光の静止状態にする */
+  .chara-halo[data-state="weak"],
+  .chara-halo[data-state="flicker"] { animation: none; opacity: 0.45; }
+  .chara.fx-hop { animation: none; }
+}
 
 /* 背景鑑賞モード */
 body.is-peek .screen,
@@ -1172,6 +1286,13 @@ body.is-peek .bg-shade { opacity: 0; }
 }
 .log-scene:first-child { margin-top: 0; }
 .log-para { margin: 0 0 0.7em; }
+.log-who {
+  display: block;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent-2);
+}
 .log-choice {
   margin: 10px 0;
   padding: 6px 12px;
