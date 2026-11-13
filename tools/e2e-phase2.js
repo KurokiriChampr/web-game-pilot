@@ -5,6 +5,7 @@
  * - トゥルーエンドまで通し、各ページの背景・立ち絵・光輪を確認（仮の絵を返すサーバ／実ファイルだけのサーバ）
  * - シーンの enter（boss=shake／sacrifice・end_true=flash）と段落の fx（sacrifice の flash）が実行される
  * - 段落の bg（end_true で hand_holding → tower_foot）
+ * - 名前札：リーネの発話段落にだけ出る（欠片の声・時喰いの影には出ない）
  * - 設定の演出オフ／prefers-reduced-motion では揺れ・フラッシュが出ない
  * - 素材が無くてもスクリプトエラーなく最後まで進む。localStorage に既存 5 件以外のキーを作らない
  */
@@ -74,6 +75,7 @@ function view(page) {
     var layer = document.querySelector("#bg-layer .bg-img.is-active");
     var c = document.querySelector("#char-layer .chara.is-active");
     var halo = c && c.querySelector(".chara-halo");
+    var name = document.getElementById("speaker-name");
     var anims = window.__anims.slice();
     window.__anims.length = 0;
     return {
@@ -84,6 +86,7 @@ function view(page) {
       chara: c ? (c.querySelector("img").getAttribute("src") || "").split("/").pop().replace(/\.webp$/, "") : null,
       halo: halo ? halo.getAttribute("data-state") : null,
       haloOpacity: halo ? Number(getComputedStyle(halo).opacity) : null,
+      speaker: name && !name.hidden && name.textContent ? name.textContent : null,
       anims: anims
     };
   });
@@ -222,6 +225,30 @@ async function run(browser) {
   same(col(r.end_true, "chara"), [null, null, null, null, null, null, "stand_normal", "stand_smile", "stand_smile"]);
   same(col(r.end_true.slice(6), "halo"), ["off", "off", "off"]);
   same(col(r.end_true.slice(6), "haloOpacity"), [0, 0, 0], "halo off は見えない");
+  // 名前札：リーネの発話段落だけに出る（欠片の声・時喰いの影・地の文には出ない）
+  var R = "リーネ";
+  var N = null;
+  var SPEAKERS = {
+    awakening: [N, N, N, N],
+    meet: [N, N, N, N, "少女"],
+    explain: [R, R, N, R, N],
+    village: [N, N, R],
+    bakery: [N, N, R, N],
+    forest: [N, N, R],
+    campfire: [R, N, R],
+    river: [R, N, N, R],
+    boat: [N, N, R, N],
+    mirror: [N, N, N, R],
+    ruins: [N, N, N],
+    night: [N, R, R, R],
+    melody: [N, N, R, N],
+    boss: [N, N, N, N],
+    sacrifice: [N, N, N, R],
+    end_true: [N, N, N, N, N, N, N, R, N]
+  };
+  Object.keys(SPEAKERS).forEach(function (id) {
+    same(col(r[id], "speaker"), SPEAKERS[id], id + " の名前札");
+  });
   same(page.errors, [], "スクリプトエラーなし");
   var keys = await page.evaluate(function () {
     return Object.keys(window.localStorage).sort();
@@ -229,7 +256,7 @@ async function run(browser) {
   same(keys.filter(function (k) { return KEYS.indexOf(k) === -1; }), [], "localStorage に既存 5 件以外のキーを作らない");
   same(await page.evaluate(function () { return document.getElementById("app-version").textContent; }), "ver 3.0-p2");
   await page.context().close();
-  console.log("  ✓ 仮の絵つき：舞台割り当て・enter・段落 fx / bg");
+  console.log("  ✓ 仮の絵つき：舞台割り当て・enter・段落 fx / bg・名前札");
 
   // ---- 2. 設定で演出オフ ----
   page = await open(browser, artUrl, { settings: { effects: false } });

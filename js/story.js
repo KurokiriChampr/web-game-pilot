@@ -182,7 +182,7 @@
             },
             {
               text: "「みんな、痛みも悲しみも、止まったまま終われないの」リーネが小さくつぶやいた。",
-              chara: "rine", expr: "sad"
+              speaker: "rine", chara: "rine", expr: "sad"
             }
           );
           return t;
@@ -209,7 +209,7 @@
           "カウンターの向こうでは、粉まみれの手をした主人が、誰かに笑いかけたまま止まっていた。",
           {
             text: "「この村のパン、好きだったな」リーネが懐かしそうに目を細める。「塔の上まで、毎朝いい匂いが届くの。……食べたことは、一度もないんだけど」",
-            chara: "rine", pose: "stand", expr: "smile", pos: "center"
+            speaker: "rine", chara: "rine", pose: "stand", expr: "smile", pos: "center"
           },
           "あなたが丸パンにそっと触れると、固まっていた湯気がふわりとほどけた。指先からこぼれた時間のぶんだけ、パンはまだ温かい。"
         ],
@@ -253,7 +253,7 @@
               text: "手を伸ばしたそのとき、木々の影がぐにゃりと歪んだ。黒い霧が獣の形をとり、赤い目でリーネを睨みつける。",
               chara: "rine", expr: "surprised", halo: "flicker"
             },
-            "「時喰い……！」リーネが後ずさる。獣が低く唸り、地を蹴った。"
+            { text: "「時喰い……！」リーネが後ずさる。獣が低く唸り、地を蹴った。", speaker: "rine" }
           );
           return t;
         },
@@ -289,14 +289,14 @@
             t.push(
               {
                 text: "獣の爪はあなたの腕を裂いたが、時喰いはそのまま霧となって散った。リーネは震える手で、あなたの傷に淡い光を当て続けた。「……ばか。無茶しないで」",
-                chara: "rine", pose: "stand", expr: "sad", pos: "center"
+                speaker: "rine", chara: "rine", pose: "stand", expr: "sad", pos: "center"
               }
             );
           } else if (s.flags.clever) {
             t.push(
               {
                 text: "落ちてきた枝に絡め取られ、時喰いは霧となって散った。「すごい……そんな戦い方があるんだ」リーネは目を丸くしていた。",
-                chara: "rine", pose: "stand", expr: "surprised", pos: "center"
+                speaker: "rine", chara: "rine", pose: "stand", expr: "surprised", pos: "center"
               }
             );
           } else {
@@ -314,7 +314,7 @@
             },
             {
               text: "炎を見つめながら、リーネが言った。「女神はね、ずっと一人なの。時を見守るだけで、誰とも同じ時間を生きられない。人の一生は、私にとって瞬きみたいなものだから」",
-              chara: "rine", pose: "sit", expr: "down", pos: "center"
+              speaker: "rine", chara: "rine", pose: "sit", expr: "down", pos: "center"
             }
           );
           return t;
@@ -357,7 +357,7 @@
             t.push(
               {
                 text: "「……おいしかった」歩きながら、リーネが思い出したように言った。「パンって、あんなに温かいものだったんだね。百年ぶんの朝を、損してた気がする」",
-                chara: "rine", pose: "stand", expr: "smile", pos: "center"
+                speaker: "rine", chara: "rine", pose: "stand", expr: "smile", pos: "center"
               }
             );
           }
@@ -367,7 +367,7 @@
               chara: "rine", pose: "stand", expr: "normal", pos: "center"
             },
             "流れの途中で止まった川面は、まるで磨かれた硝子のようだ。跳ねた魚が、水しぶきごと空中に飾られている。",
-            "「上を歩けば近道になるよ。でも、止まった水はときどき『見た人の過去』を映すの」リーネが言う。「遠回りするなら、川沿いに古い修道院の図書館があるけど……」"
+            { text: "「上を歩けば近道になるよ。でも、止まった水はときどき『見た人の過去』を映すの」リーネが言う。「遠回りするなら、川沿いに古い修道院の図書館があるけど……」", speaker: "rine" }
           );
           return t;
         },
@@ -389,7 +389,7 @@
           "舟底に、小さな木箱が転がっていた。蓋を開けると、錆びた櫛歯と真鍮の円筒――オルゴールだ。",
           {
             text: "「それ、『刻（とき）告げの歌』だよ」リーネが箱をのぞき込む。「昔は塔の鐘が鳴るたびに、この国の人たちが口ずさんでいたの。……もう、誰も歌わなくなって久しいけど」",
-            chara: "rine", pose: "stand", expr: "normal", pos: "center"
+            speaker: "rine", chara: "rine", pose: "stand", expr: "normal", pos: "center"
           },
           "ねじは固く、いくら力を込めても回らない。止まった世界では、旋律もまた止まったままらしい。"
         ],
@@ -419,7 +419,7 @@
           "水鏡の中の自分は、残業帰りの夜道で、ぽつりとつぶやいていた。『時間なんて、止まってしまえばいいのに』",
           {
             text: "隣で同じものを見ていたリーネが、そっと尋ねる。「あなたの世界でも、時間は……止まってほしいものだったの？」",
-            chara: "rine", pose: "stand", expr: "sad", pos: "center"
+            speaker: "rine", chara: "rine", pose: "stand", expr: "sad", pos: "center"
           }
         ],
         choices: [
@@ -478,7 +478,7 @@
             t.push(
               {
                 text: "リーネは長い沈黙のあと、小さくうなずいた。「……たぶん、そう。私が寂しいって思ったから、あの影は生まれたのかもしれない」",
-                chara: "rine", pose: "stand", expr: "sad", pos: "center"
+                speaker: "rine", chara: "rine", pose: "stand", expr: "sad", pos: "center"
               }
             );
           } else if (s.flags.lore) {
@@ -527,18 +527,18 @@
             },
             {
               text: "並んで座った砂丘の上で、リーネが膝を抱えた。「ねえ。歯車を回すには、私の力を全部注がないといけないの。そうしたら私は、女神として天の座に還る」",
-              chara: "rine", pose: "sit", expr: "down", pos: "center"
+              speaker: "rine", chara: "rine", pose: "sit", expr: "down", pos: "center"
             },
             {
               text: "「……たぶん、もう会えない」",
-              chara: "rine", pose: "sit", expr: "down", pos: "center", halo: "flicker"
+              speaker: "rine", chara: "rine", pose: "sit", expr: "down", pos: "center", halo: "flicker"
             }
           ];
           if (s.flags.petal) {
             t.push(
               {
                 text: "それから、彼女は空の一点を指さした。「最初の日、あなたが花びらに触れたでしょう？　あの一枚だけね、ずっと、ずっとゆっくり落ち続けてるの。……気づいてた？」",
-                chara: "rine", pose: "sit", expr: "down", pos: "center"
+                speaker: "rine", chara: "rine", pose: "sit", expr: "down", pos: "center"
               }
             );
           }
@@ -591,14 +591,14 @@
             t.push(
               {
                 text: "「……花びらのときと、同じだ」リーネが息をのんだ。「あなたの手からは、時間がこぼれるんだね」",
-                chara: "rine", pose: "sit", expr: "surprised", pos: "center"
+                speaker: "rine", chara: "rine", pose: "sit", expr: "surprised", pos: "center"
               }
             );
           } else {
             t.push(
               {
                 text: "「……どうして」リーネが息をのんだ。「あなたが触れているから、かな。あなたの手からは、時間がこぼれるんだね」",
-                chara: "rine", pose: "sit", expr: "surprised", pos: "center"
+                speaker: "rine", chara: "rine", pose: "sit", expr: "surprised", pos: "center"
               }
             );
           }
@@ -708,7 +708,7 @@
                 text: "剣は霧をすり抜け、影の腕があなたを飲み込もうとする。――そのとき、リーネが前に出た。",
                 chara: "rine", pose: "stand", expr: "serious", pos: "center"
               },
-              "「この人に、触れないで」彼女の光が影を包み込み、時喰いの王は悲鳴とともに消えた。〈黄昏の欠片〉が床に転がる。"
+              { text: "「この人に、触れないで」彼女の光が影を包み込み、時喰いの王は悲鳴とともに消えた。〈黄昏の欠片〉が床に転がる。", speaker: "rine" }
             );
           }
           t.push(
@@ -718,7 +718,7 @@
             },
             {
               text: "「最後は、私の番」リーネが歯車に手を添える。その指先から、体が少しずつ光の粒になってほどけていく。「ありがとう。あなたと過ごした時間は、私の永遠の中で一番――」",
-              halo: "strong"
+              speaker: "rine", halo: "strong"
             }
           );
           return t;
@@ -778,7 +778,7 @@
             },
             {
               text: "「ねえ。これからは、同じ時間を生きられるね」",
-              chara: "rine", expr: "smile"
+              speaker: "rine", chara: "rine", expr: "smile"
             },
             "止まっていた世界の、最初の朝日が昇っていく。"
           );
