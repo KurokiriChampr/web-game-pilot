@@ -100,6 +100,37 @@ var usedBg = {};
 var usedChara = {};
 var replays = 0;
 var statesSeen = {};
+// 立ち絵を出さず名前札だけを出すリーネの台詞（ベル判断・確定）。シーン ID と段落テキストの完全一致で特定する。
+// ここに無い段落で speaker と立ち絵が食い違えば、従来どおり NG。
+var SPEAKER_ONLY = [
+  ["village", "「時が戻れば、あなたもこの世界で生きていける。……それじゃ、だめ？」そう答えたきり、道中のリーネはほとんど口をきかなかった。"],
+  ["end_true", "「うそ……力が、半分ずつ……？」異世界から来たあなたの魂が、女神の力を分け合い、受け止めていた。"],
+  ["end_true", "「約束、覚えてる？」リーネがあなたの袖を引いた。「パン、買いに行こう。今度はちゃんと、焼きたてのを」"],
+  ["end_bad", "「……どうして、もっと」遠くでリーネの声がした気がした。けれど、その続きはもう聞こえない。"]
+];
+var speakerOnlySeen = {};
+function isSpeakerOnly(sceneId, text) {
+  for (var i = 0; i < SPEAKER_ONLY.length; i++) {
+    if (SPEAKER_ONLY[i][0] === sceneId && SPEAKER_ONLY[i][1] === text) return i;
+  }
+  return -1;
+}
+// 話者のいるページの検査。例外の段落は「話者はリーネ、立ち絵は舞台にいない」ことを求める
+function checkSpeaker(sceneId, page, st) {
+  if (!st.speaker) return;
+  ok(STORY.cast[st.speaker] && STORY.cast[st.speaker].name, sceneId + " 話者が cast にある");
+  var ex = isSpeakerOnly(sceneId, page.text);
+  if (ex !== -1) {
+    speakerOnlySeen[ex] = true;
+    ok(st.speaker === "rine" && st.speakerChara === null, sceneId + " 名前札だけの段落（立ち絵なし）");
+  } else {
+    ok(st.speakerChara === "rine", sceneId + " 話者の立ち絵が舞台にいる");
+  }
+}
+// 例外は無制限ではない：同じ文でも別シーンなら、別の文なら同じシーンでも従来どおり NG
+assert.throws(function () { checkSpeaker("end_true", { text: SPEAKER_ONLY[3][1] }, { speaker: "rine", speakerChara: null }); });
+assert.throws(function () { checkSpeaker("end_true", { text: "「ねえ。これからは、同じ時間を生きられるね」" }, { speaker: "rine", speakerChara: null }); });
+assert.throws(function () { checkSpeaker("end_bad", { text: SPEAKER_ONLY[3][1] + "。" }, { speaker: "rine", speakerChara: null }); });
 Object.keys(STORY.scenes).forEach(function (id) {
   var scene = STORY.scenes[id];
   for (var n = 0; n < 1 << FLAGS.length; n++) {
@@ -151,10 +182,7 @@ Object.keys(STORY.scenes).forEach(function (id) {
       if (st.fx.length || st.halo !== "weak") {
         ok(Stage.HALO_STATES.indexOf(st.halo) !== -1 && st.fx.every(function (x) { return FX_NAMES.indexOf(x) !== -1; }), id + " halo / fx の値");
       }
-      if (st.speaker) {
-        ok(STORY.cast[st.speaker] && STORY.cast[st.speaker].name, id + " 話者が cast にある");
-        ok(st.speakerChara === "rine", id + " 話者の立ち絵が舞台にいる");
-      }
+      checkSpeaker(id, p, st);
       st.charas.forEach(function (c) {
         ok(Stage.POSITIONS.indexOf(c.pos) !== -1 && c.pose && c.expr);
       });
@@ -166,6 +194,9 @@ Object.keys(STORY.scenes).forEach(function (id) {
     replays += 1;
   }
 });
+
+// 例外の 4 段落はどれも実際に現れて検査された（使われない例外を残さない）
+eq(Object.keys(speakerOnlySeen).length, SPEAKER_ONLY.length, "名前札だけの段落 4 つがすべて検査された");
 
 // ---- meet / explain の具体的な状態 ----
 var meet = STORY.scenes.meet;

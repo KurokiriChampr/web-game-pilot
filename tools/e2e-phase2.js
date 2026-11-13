@@ -6,6 +6,7 @@
  * - シーンの enter（boss=shake／sacrifice・end_true=flash）と段落の fx（sacrifice の flash）が実行される
  * - 段落の bg（end_true で hand_holding → tower_foot）
  * - 名前札：リーネの発話段落にだけ出る（欠片の声・時喰いの影には出ない）
+ *   立ち絵なしで名前札だけの 4 段落（village selfish／end_true ×2／end_bad）はオートセーブから再開して確認
  * - 設定の演出オフ／prefers-reduced-motion では揺れ・フラッシュが出ない
  * - 素材が無くてもスクリプトエラーなく最後まで進む。localStorage に既存 5 件以外のキーを作らない
  */
@@ -226,6 +227,7 @@ async function run(browser) {
   same(col(r.end_true.slice(6), "halo"), ["off", "off", "off"]);
   same(col(r.end_true.slice(6), "haloOpacity"), [0, 0, 0], "halo off は見えない");
   // 名前札：リーネの発話段落だけに出る（欠片の声・時喰いの影・地の文には出ない）
+  // end_true 2 ページ目「うそ……力が、半分ずつ……？」は立ち絵なしで名前札だけ
   var R = "リーネ";
   var N = null;
   var SPEAKERS = {
@@ -244,7 +246,7 @@ async function run(browser) {
     melody: [N, N, R, N],
     boss: [N, N, N, N],
     sacrifice: [N, N, N, R],
-    end_true: [N, N, N, N, N, N, N, R, N]
+    end_true: [N, R, N, N, N, N, N, R, N]
   };
   Object.keys(SPEAKERS).forEach(function (id) {
     same(col(r[id], "speaker"), SPEAKERS[id], id + " の名前札");
@@ -301,6 +303,48 @@ async function run(browser) {
   same(col(r.sacrifice, "chara")[0], "stand_serious");
   await page.context().close();
   console.log("  ✓ 実ファイルだけ（フォールバック）");
+
+  // ---- 5. 立ち絵なしで名前札だけを出す 4 段落 ----
+  // オートセーブに状態を入れて「つづきから」で再開し、該当ページの名前札と立ち絵を見る
+  async function resume(saved) {
+    var p = await open(browser, artUrl);
+    await p.evaluate(function (s) {
+      window.localStorage.setItem("chrono-tale-save-v1", JSON.stringify(s));
+    }, Object.assign({ affection: 0, shards: 0, flags: {}, steps: 10, log: [] }, saved));
+    await p.reload();
+    await p.waitForSelector("#continue-btn:not([hidden])");
+    await p.click("#continue-btn");
+    return p;
+  }
+  // village（selfish）：1 ページ目
+  page = await resume({ scene: "village", flags: { petal: true, selfish: true } });
+  var v = await readScene(page);
+  same([v[0].speaker, v[0].chara], ["リーネ", null], "village selfish：名前札だけ（立ち絵なし）");
+  same(col(v, "speaker"), ["リーネ", null, null, "リーネ"]);
+  same(page.errors, []);
+  await page.context().close();
+  // end_true（bakeryPromise）：2 ページ目「うそ……」と bakeryPromise の段落
+  page = await resume({ scene: "sacrifice", affection: 10, shards: 3, flags: { petal: true, reached: true, bakeryPromise: true } });
+  await readScene(page);
+  await choose(page, "だめだ！");
+  v = await readScene(page);
+  var promise = v.findIndex(function (x) { return x.text.indexOf("「約束、覚えてる？」") === 0; });
+  ok(promise > 0, "bakeryPromise の段落がある");
+  same([v[1].speaker, v[1].chara], ["リーネ", null], "end_true「うそ……」：名前札だけ");
+  same([v[promise].speaker, v[promise].chara], ["リーネ", null], "end_true bakeryPromise：名前札だけ");
+  same(page.errors, []);
+  await page.context().close();
+  // end_bad：3 ページ目「……どうして、もっと」
+  page = await resume({ scene: "boss", affection: 0, shards: 3, flags: {} });
+  await readScene(page);
+  await choose(page, "剣を抜き");
+  v = await readScene(page);
+  same(col(v, "speaker"), [null, null, "リーネ", null, null], "end_bad の名前札");
+  same(col(v, "chara"), [null, null, null, null, null], "end_bad に立ち絵は出ない");
+  same(page.errors, []);
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, "end_bad-last-1366x768.jpg"), type: "jpeg", quality: 80 });
+  await page.context().close();
+  console.log("  ✓ 名前札だけの 4 段落（village selfish／end_true ×2／end_bad）");
 }
 
 (async function () {
