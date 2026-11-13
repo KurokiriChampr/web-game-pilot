@@ -1005,11 +1005,25 @@ body:has(.game-screen.is-choosing) .chara.is-active { filter: brightness(0.6) dr
 .halo-crack { fill: none; stroke: #ffffff; stroke-width: 0.6; stroke-linejoin: round; opacity: 0.75; }
 .chara-halo[data-state="weak"]    { animation: haloWeak 3.4s ease-in-out infinite; }
 .chara-halo[data-state="flicker"] { animation: haloFlicker 1.7s linear infinite; }
-.chara-halo[data-state="bright"]  { opacity: 1; filter: drop-shadow(0 0 14px rgba(255, 232, 160, 1)); }
+/* strong＝明るく強い発光（bright は Phase 1 の旧名。同じ見た目） */
+.chara-halo[data-state="strong"],
+.chara-halo[data-state="bright"] {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(255, 244, 200, 1)) drop-shadow(0 0 26px rgba(255, 224, 140, 0.95));
+  animation: haloStrong 2.6s ease-in-out infinite;
+}
+.chara-halo[data-state="strong"] .halo-glow,
+.chara-halo[data-state="bright"] .halo-glow { fill: rgba(255, 236, 170, 0.34); }
+.chara-halo[data-state="strong"] .halo-ring,
+.chara-halo[data-state="bright"] .halo-ring { stroke: #fff6d6; stroke-width: 2.2; }
 .chara-halo[data-state="off"]     { opacity: 0; }
 @keyframes haloWeak {
   0%, 100% { opacity: 0.5; }
   50%      { opacity: 0.28; }
+}
+@keyframes haloStrong {
+  0%, 100% { opacity: 1; scale: 1; }
+  50%      { opacity: 0.86; scale: 1.035; }
 }
 @keyframes haloFlicker {
   0%, 100% { opacity: 0.5; }
@@ -1025,8 +1039,13 @@ body:has(.game-screen.is-choosing) .chara.is-active { filter: brightness(0.6) dr
   /* 明滅を止め、弱い発光の静止状態にする */
   .chara-halo[data-state="weak"],
   .chara-halo[data-state="flicker"] { animation: none; opacity: 0.45; }
+  .chara-halo[data-state="strong"],
+  .chara-halo[data-state="bright"] { animation: none; opacity: 1; }
   .chara.fx-hop { animation: none; }
 }
+/* 設定で演出をオフにしたとき：跳ねを止める（光輪の状態そのものは物語の情報なので残し、瞬きだけ静止にする） */
+body.fx-off .chara.fx-hop { animation: none; }
+body.fx-off .chara-halo[data-state="flicker"] { animation: none; opacity: 0.45; }
 
 /* 背景鑑賞モード */
 body.is-peek .screen,
@@ -1049,7 +1068,19 @@ body.is-peek .bg-shade { opacity: 0; }
 }
 
 /* ---------- シーン演出 ---------- */
-.game-screen.is-shaking { animation: shake 0.6s ease both; }
+/* shake：背景・立ち絵・ウィンドウをまとめて短く揺らす（シーンの enter と段落の fx で共用。body に付ける）。
+   背景は少し拡大して、揺れても端が見えないようにする */
+body.is-shaking .game-screen,
+body.is-shaking .char-layer { animation: shake 0.6s ease; }
+body.is-shaking .bg-layer { animation: shakeBg 0.6s ease; }
+@keyframes shakeBg {
+  0%, 100% { transform: none; }
+  15% { transform: scale(1.03) translate(-7px, 2px); }
+  30% { transform: scale(1.03) translate(6px, -2px); }
+  45% { transform: scale(1.03) translate(-5px, 1px); }
+  60% { transform: scale(1.03) translate(4px, -1px); }
+  80% { transform: scale(1.015) translate(-2px, 0); }
+}
 @keyframes shake {
   0%, 100% { transform: none; }
   15% { transform: translate(-7px, 2px); }
@@ -1070,6 +1101,17 @@ body.is-peek .bg-shade { opacity: 0; }
 @keyframes flash {
   0%   { opacity: 0.75; }
   100% { opacity: 0; }
+}
+/* 演出オフ（設定）と「視差効果を減らす」では、揺れもフラッシュも出さない（JS 側でも呼ばないが、念のため CSS でも止める） */
+body.fx-off.is-shaking .game-screen,
+body.fx-off.is-shaking .char-layer,
+body.fx-off.is-shaking .bg-layer,
+body.fx-off .flash.is-on { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  body.is-shaking .game-screen,
+  body.is-shaking .char-layer,
+  body.is-shaking .bg-layer,
+  .flash.is-on { animation: none; }
 }
 
 .heart-meter.is-up   { animation: heartUp 0.9s ease; }

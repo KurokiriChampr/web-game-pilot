@@ -4,7 +4,24 @@
   "defaults": { "image": null, "bgm": null },
   "title": { "image": "images/title.jpg", "bgm": "bgm/title.mp3" },
   "backgrounds": {
-    "tower_foot": { "image": "images/bg/tower_foot.webp", "position": "50% 40%", "positionPortrait": "50% 45%" }
+    "tower_foot": { "image": "images/bg/tower_foot.webp", "position": "50% 40%", "positionPortrait": "50% 45%" },
+    "meadow": { "image": "images/awakening.jpg" },
+    "village_plaza": { "image": "images/bg/village_plaza.webp" },
+    "bakery": { "image": "images/bakery.jpg" },
+    "forest": { "image": "images/forest.jpg" },
+    "campfire": { "image": "images/campfire.jpg" },
+    "riverbank": { "image": "images/river.jpg" },
+    "boat": { "image": "images/boat.jpg" },
+    "mirror": { "image": "images/mirror.jpg" },
+    "library": { "image": "images/library.jpg" },
+    "temple_ruins": { "image": "images/ruins.jpg" },
+    "dune_night": { "image": "images/bg/dune_night.webp" },
+    "tower_top": { "image": "images/boss.jpg" },
+    "gear_chamber": { "image": "images/sacrifice.jpg" },
+    "tower_still": { "image": "images/end_still.jpg" },
+    "night_sky": { "image": "images/end_normal.jpg" },
+    "frozen_world": { "image": "images/end_bad.jpg" },
+    "hand_holding": { "image": "images/bg/hand_holding.webp" }
   },
   "characters": {
     "rine": {
@@ -15,12 +32,17 @@
             "normal": "stand_normal.webp",
             "surprised": "stand_surprised.webp",
             "wry": "stand_wry.webp",
-            "serious": "stand_serious.webp"
+            "serious": "stand_serious.webp",
+            "smile": "stand_smile.webp",
+            "smile_open": "stand_smile_open.webp",
+            "angry": "stand_angry.webp",
+            "sad": "stand_sad.webp",
+            "eyes_closed": "stand_eyes_closed.webp"
           },
           "halo": { "x": 50, "y": 22, "size": 46 }
         },
         "sit": {
-          "exprs": { "down": "sit_down.webp", "surprised": "sit_surprised.webp" },
+          "exprs": { "down": "sit_down.webp", "surprised": "sit_surprised.webp", "eyes_closed": "sit_eyes_closed.webp" },
           "halo": { "x": 52, "y": 30, "size": 40 }
         }
       }

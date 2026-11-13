@@ -11,7 +11,7 @@
   "use strict";
 
   // 版を上げるときは index.html の data-app-version と ?v= も同じ値にする
-  var VERSION = "3.0-p1";
+  var VERSION = "3.0-p2";
 
   var STORY = window.STORY;
   var Assets = window.GameAssets;
@@ -33,6 +33,7 @@
     { label: "はやい", cps: 80 },
     { label: "一瞬", cps: 0 }
   ];
+  var SCREEN_FX = ["shake", "flash"]; // 画面全体の演出（シーンの enter・段落の fx）
   var FX_COUNT = { petals: 14, "petals-fall": 18, motes: 16, embers: 14, dust: 20 };
 
   var state = null;
@@ -83,7 +84,8 @@
       skipRead: !!s.skipRead,
       volume: typeof s.volume === "number" ? Math.max(0, Math.min(1, s.volume)) : 0.6,
       muted: !!s.muted,
-      images: s.images !== false
+      images: s.images !== false,
+      effects: s.effects !== false // 画面の揺れ・フラッシュなどの演出（ver 3.0 Phase 2〜。旧データに無ければオン）
     };
   }
   function saveSettings() {
@@ -278,11 +280,35 @@
     }
   }
 
+  /** 画面演出を出してよいか（設定の「演出」がオフ、または OS の「視差効果を減らす」では出さない） */
+  function effectsEnabled() {
+    return settings.effects !== false && !prefersReducedMotion();
+  }
+
+  /** CSS 側でも止められるよう、設定の状態を body に写す */
+  function renderEffectsSetting() {
+    document.body.classList.toggle("fx-off", settings.effects === false);
+  }
+
+  /**
+   * 画面全体の演出。"shake"＝背景・立ち絵・ウィンドウを短く揺らす／"flash"＝白フラッシュ。
+   * シーンの enter と、段落の fx の両方から呼ぶ。未知の名前は無視する（"hop" は立ち絵側で js/assets.js が処理）。
+   */
+  function playScreenFx(name) {
+    if (SCREEN_FX.indexOf(name) === -1 || !effectsEnabled()) return;
+    if (name === "shake") replayAnimation(document.body, "is-shaking");
+    else if (name === "flash") replayAnimation(els.flash, "is-on");
+  }
+
+  function stopScreenFx() {
+    document.body.classList.remove("is-shaking");
+    els.flash.classList.remove("is-on");
+  }
+
   function playEnterEffect(scene) {
     replayAnimation(els.textbox, "is-entering");
-    els.gameScreen.classList.remove("is-shaking");
-    if (scene.enter === "shake") replayAnimation(els.gameScreen, "is-shaking");
-    if (scene.enter === "flash") replayAnimation(els.flash, "is-on");
+    stopScreenFx();
+    playScreenFx(scene.enter);
   }
 
   // シーン切替のタイトルバナー（シネマティック演出）
@@ -544,6 +570,7 @@
     if (enteringScene) Assets.setScene(state.scene, stage);
     else Assets.setStage(stage);
     renderNameplate(stage);
+    return stage;
   }
 
   /** いまのページ（段落）をメッセージウィンドウに表示する */
@@ -554,7 +581,9 @@
     els.nextMark.hidden = true;
     els.pageCount.textContent = total > 1 ? pager.index + 1 + " / " + total : "";
     els.sceneText.scrollTop = 0;
-    applyStage(false);
+    var stage = applyStage(false);
+    // 段落の fx（そのページだけ）。背景 bg の切替は applyStage → Assets 側でクロスフェードする
+    if (stage) stage.fx.forEach(playScreenFx);
 
     typeScene(total ? [pager.paras[pager.index]] : [], instant || pager.instant, function () {
       pager.pageDone = true;
@@ -612,7 +641,10 @@
     pager.ended = false;
     pager.stepLabel = stepLabel;
     applyStage(true); // 背景・立ち絵・BGM をシーン先頭の状態に合わせる
-    if (pager.staged) Assets.preload(Stage.charasUsed(pager.pages, { stage: scene.stage, cast: STORY.cast }));
+    if (pager.staged) {
+      var stageOpts = { stage: scene.stage, cast: STORY.cast };
+      Assets.preload(Stage.charasUsed(pager.pages, stageOpts), Stage.bgsUsed(pager.pages, stageOpts));
+    }
     playEnterEffect(scene);
     showBanner(stepLabel, scene.title);
 
@@ -897,6 +929,8 @@
     els.setVolume.value = String(Math.round(settings.volume * 100));
     els.setVolumeLabel.textContent = String(Math.round(settings.volume * 100));
     els.setImages.checked = settings.images;
+    els.setEffects.checked = settings.effects !== false;
+    renderEffectsSetting();
     renderMute();
   }
 
@@ -1080,6 +1114,7 @@
     setVolumeLabel: "set-volume-label",
     setMute: "set-mute",
     setImages: "set-images",
+    setEffects: "set-effects",
     assetStatus: "asset-status"
   };
 
@@ -1185,6 +1220,13 @@
     els.setImages.addEventListener("change", function () {
       settings.images = els.setImages.checked;
       Assets.setImagesEnabled(settings.images);
+      saveSettings();
+    });
+
+    els.setEffects.addEventListener("change", function () {
+      settings.effects = els.setEffects.checked;
+      renderEffectsSetting();
+      if (!settings.effects) stopScreenFx();
       saveSettings();
     });
 

@@ -3,6 +3,8 @@
  * ------------------------------------------------------------
  * scene.text の要素は「文字列」または「{ text, speaker, chara, pose, expr, pos,
  * show, hide, bg, cg, halo, fx }」のどちらでもよい（docs/v3-phase0-research.md §A-3）。
+ * 持ち越すもの：立ち絵（pose / expr / pos）・背景 bg・光輪 halo（明示されるまで続く。既定は weak）。
+ * そのページだけのもの：話者 speaker と演出 fx（"hop" / "shake" / "flash"）。
  * ここでは DOM に触らず、データだけを扱う（Node からも読めるので検証スクリプトと共用する）。
  *
  * - normalizePage / normalizePages : 文字列を { text } に包み、形をそろえる
@@ -15,7 +17,8 @@
   "use strict";
 
   var POSITIONS = ["left", "center", "right"];
-  var HALO_STATES = ["weak", "flicker", "bright", "off"];
+  // weak＝弱い明滅（既定）／flicker＝不規則な瞬き／strong＝明るく強い発光／off＝非表示。bright は strong の旧名（Phase 1）
+  var HALO_STATES = ["weak", "flicker", "strong", "bright", "off"];
   var DEFAULT_POSE = "stand";
   var DEFAULT_EXPR = "normal";
   var DEFAULT_POS = "center";
@@ -180,6 +183,23 @@
     return out;
   }
 
+  /** シーン内で使う背景の論理名（先読み用）。scene.stage の bg と、段落の bg / cg。重複は除く。 */
+  function bgsUsed(pages, opts) {
+    var list = normalizePages(pages);
+    var seen = {};
+    var out = [];
+    for (var i = -1; i < list.length; i++) {
+      var st = stageAt(list, i, opts);
+      [st.cg, st.bg].forEach(function (name) {
+        if (typeof name === "string" && name && !seen[name]) {
+          seen[name] = true;
+          out.push(name);
+        }
+      });
+    }
+    return out;
+  }
+
   var api = {
     POSITIONS: POSITIONS,
     HALO_STATES: HALO_STATES,
@@ -188,7 +208,8 @@
     pageTexts: pageTexts,
     usesStage: usesStage,
     stageAt: stageAt,
-    charasUsed: charasUsed
+    charasUsed: charasUsed,
+    bgsUsed: bgsUsed
   };
 
   if (typeof module !== "undefined" && module.exports) {
