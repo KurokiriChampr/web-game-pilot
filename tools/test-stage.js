@@ -4,7 +4,9 @@
  *   node tools/test-stage.js
  * - 正規化：文字列とオブジェクトの混在、本文は不変
  * - 再現性：1 ページずつ進めた結果／スキップで最終ページへ飛んだ結果／ロード直後（0 ページ目）が
- *   どれも「0 ページ目からの畳み込み」と一致する（meet / explain の全フラグ組合せ）
+ *   どれも「0 ページ目からの畳み込み」と一致する（全 20 シーンの全フラグ組合せ）
+ * - Phase 2：光輪 strong / off と継続、段落の bg、fx shake / flash、18 シーンの舞台割り当て、
+ *   使っている論理名（背景・ポーズ・表情）が assets/manifest.json にあること
  * - バックログ：保存される paras は文字列の配列のまま
  */
 "use strict";
@@ -67,9 +69,35 @@ ok(!Stage.usesStage({ text: ["a"] }, ["a", "b"]), "従来形式の判定");
 ok(Stage.usesStage({ stage: { bg: "x" } }, ["a"]));
 ok(Stage.usesStage({}, ["a", { text: "b" }]));
 
-// ---- 再現性（meet / explain、全フラグ組合せ）----
+// ---- Phase 2：光輪・段落 bg・画面演出 ----
+var p2 = [
+  "まだ誰もいない",
+  { text: "登場（光輪は既定）", chara: "rine" },
+  { text: "強く光る", halo: "strong", fx: "flash" },
+  "持ち越し",
+  { text: "背景が変わる", bg: "tower_foot", fx: ["shake", "hop"] },
+  { text: "光輪が消える", halo: "off" },
+  { text: "未知の値は無視", halo: "rainbow" }
+];
+var p2o = { cast: cast, stage: { bg: "meadow" } };
+eq(Stage.stageAt(p2, 1, p2o).halo, "weak", "立ち絵が初めて出るときの既定は weak");
+eq([Stage.stageAt(p2, 2, p2o).halo, Stage.stageAt(p2, 2, p2o).fx], ["strong", ["flash"]]);
+eq([Stage.stageAt(p2, 3, p2o).halo, Stage.stageAt(p2, 3, p2o).fx, Stage.stageAt(p2, 3, p2o).bg], ["strong", [], "meadow"], "halo は継続、fx はそのページだけ");
+eq([Stage.stageAt(p2, 4, p2o).bg, Stage.stageAt(p2, 4, p2o).fx], ["tower_foot", ["shake", "hop"]], "段落の bg で背景が切り替わる");
+eq([Stage.stageAt(p2, 5, p2o).halo, Stage.stageAt(p2, 5, p2o).bg], ["off", "tower_foot"], "bg も継続");
+eq(Stage.stageAt(p2, 6, p2o).halo, "off", "未知の halo は無視して継続");
+eq(Stage.bgsUsed(p2, p2o), ["meadow", "tower_foot"]);
+["weak", "flicker", "strong", "off"].forEach(function (h) {
+  ok(Stage.HALO_STATES.indexOf(h) !== -1, "halo " + h);
+});
+
+// ---- 再現性（全シーン、全フラグ組合せ）----
 var FLAGS = ["petal", "selfish", "kindness", "brave", "clever", "shared", "asked", "lore", "reached", "song", "bakeryPromise", "together"];
-var V3 = ["meet", "explain"];
+var V3 = Object.keys(STORY.scenes); // Phase 2 で全シーンが新形式
+var MANIFEST = JSON.parse(require("fs").readFileSync(path.join(__dirname, "..", "assets", "manifest.json"), "utf8"));
+var FX_NAMES = ["hop", "shake", "flash"];
+var usedBg = {};
+var usedChara = {};
 var replays = 0;
 var statesSeen = {};
 Object.keys(STORY.scenes).forEach(function (id) {
@@ -107,6 +135,22 @@ Object.keys(STORY.scenes).forEach(function (id) {
     // (e) 新形式シーンの全ページに立ち絵の状態が決まっている（登場前の地の文を除く）
     norm.forEach(function (p, k) {
       var st = stepwise[k];
+      // 使っている論理名がマニフェストにある（ファイルの有無は別。無ければ実行時にフォールバックする）
+      if (!usedBg[st.bg]) {
+        usedBg[st.bg] = true;
+        ok(MANIFEST.backgrounds[st.bg] && typeof MANIFEST.backgrounds[st.bg].image === "string", id + " 背景 " + st.bg + " が manifest にある");
+      }
+      st.charas.forEach(function (c) {
+        var key = c.id + "/" + c.pose + "/" + c.expr;
+        if (usedChara[key]) return;
+        usedChara[key] = true;
+        var pose = MANIFEST.characters[c.id] && MANIFEST.characters[c.id].poses[c.pose];
+        ok(pose && typeof pose.exprs[c.expr] === "string", id + " 立ち絵 " + key + " が manifest にある");
+        ok(c.pos === "center", id + " 位置は center");
+      });
+      if (st.fx.length || st.halo !== "weak") {
+        ok(Stage.HALO_STATES.indexOf(st.halo) !== -1 && st.fx.every(function (x) { return FX_NAMES.indexOf(x) !== -1; }), id + " halo / fx の値");
+      }
       if (st.speaker) {
         ok(STORY.cast[st.speaker] && STORY.cast[st.speaker].name, id + " 話者が cast にある");
         ok(st.speakerChara === "rine", id + " 話者の立ち絵が舞台にいる");
@@ -143,4 +187,71 @@ eq(
 );
 eq(Stage.charasUsed(ex.text, eo).length, 3, "explain で使う立ち絵は 3 種");
 
-console.log("OK: " + checks + " 件の検査に合格（meet/explain × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");
+// ---- Phase 2：18 シーンの舞台割り当て（指示書どおりか）----
+/** フラグを与えて、各ページの「pose/expr/halo[/bg][+fx]」を並べる。立ち絵なしは "-" */
+function trace(id, flags) {
+  var scene = STORY.scenes[id];
+  var raw = typeof scene.text === "function" ? scene.text({ flags: flags || {}, affection: 0, shards: 0 }) : scene.text;
+  var opt = { stage: scene.stage, cast: STORY.cast };
+  return raw.map(function (_, i) {
+    var st = Stage.stageAt(raw, i, opt);
+    var c = st.charas[0];
+    return (c ? c.pose + "/" + c.expr + "/" + st.halo : "-") + (st.fx.length ? "+" + st.fx.join("+") : "");
+  });
+}
+function bgs(id, flags) {
+  var scene = STORY.scenes[id];
+  var raw = typeof scene.text === "function" ? scene.text({ flags: flags || {}, affection: 0, shards: 0 }) : scene.text;
+  return raw.map(function (_, i) {
+    return Stage.stageAt(raw, i, { stage: scene.stage, cast: STORY.cast }).bg;
+  });
+}
+var SN = "stand/normal/weak";
+var SD = "sit/down/weak";
+eq(trace("awakening"), ["-", "-", "-", "-"]);
+eq(trace("village", { selfish: true }), ["-", "-", SN, "stand/sad/weak"]);
+eq(trace("village"), ["-", SN, "stand/sad/weak"]);
+eq(trace("bakery"), ["-", "-", "stand/smile/weak", "stand/smile/weak"]);
+eq(trace("forest", { kindness: true }), ["stand/smile/weak", SN, "stand/surprised/flicker", "stand/surprised/flicker"]);
+eq(trace("forest"), [SN, "stand/surprised/flicker", "stand/surprised/flicker"]);
+eq(trace("campfire", { brave: true }), ["stand/sad/weak", SD, SD]);
+eq(trace("campfire", { clever: true }), ["stand/surprised/weak", SD, SD]);
+eq(trace("campfire", { relied: true }), ["stand/eyes_closed/weak", SD, SD]);
+eq(trace("river", { shared: true }), ["stand/smile/weak", SN, SN, SN]);
+eq(trace("river"), [SN, SN, SN]);
+eq(trace("boat"), ["-", "-", SN, SN]);
+eq(trace("mirror"), ["-", "-", "-", "stand/sad/weak"]);
+eq(trace("library"), ["-", "-", "stand/surprised/weak"]);
+eq(trace("ruins", { asked: true, lore: true }), ["stand/sad/weak", SN, SN, SN]);
+eq(trace("ruins", { lore: true }), [SN, SN, SN, SN]);
+eq(trace("ruins"), [SN, SN, SN]);
+eq(trace("night"), [SD, SD, "sit/down/flicker"]);
+eq(trace("night", { petal: true }), [SD, SD, "sit/down/flicker", "sit/down/flicker"]);
+eq(trace("melody"), [SD, SD, "sit/surprised/weak", "sit/eyes_closed/weak"]);
+eq(trace("melody", { petal: true }), [SD, SD, "sit/surprised/weak", "sit/eyes_closed/weak"]);
+eq(trace("boss"), ["-", "-", "-", "-"]);
+eq(trace("sacrifice", { reached: true }), ["stand/serious/weak", "stand/serious/weak+flash", "stand/serious/strong", "stand/serious/strong"]);
+eq(trace("sacrifice"), ["stand/serious/weak", "stand/serious/weak", "stand/serious/strong", "stand/serious/strong"]);
+eq(trace("end_true"), ["-", "-", "-", "-", "stand/normal/off", "stand/smile/off", "stand/smile/off"]);
+eq(bgs("end_true"), ["hand_holding", "hand_holding", "hand_holding", "tower_foot", "tower_foot", "tower_foot", "tower_foot"]);
+var etAll = trace("end_true", { kindness: true, petal: true, song: true, bakeryPromise: true });
+eq(etAll.slice(0, 8), ["-", "-", "-", "-", "-", "-", "-", "-"], "end_true の分岐段落では立ち絵なし");
+eq(etAll.slice(8), ["stand/normal/off", "stand/smile/off", "stand/smile/off"]);
+eq(trace("end_normal", { together: true, song: true }), ["-", "-", "-", "-", "-", "-", "-"]);
+eq(trace("end_bad"), ["-", "-", "-", "-", "-"]);
+eq(trace("end_still"), ["-", "stand/wry/weak", "stand/wry/weak", "stand/wry/weak", "stand/sad/weak", "stand/sad/weak"]);
+var STAGE_BG = {
+  awakening: "meadow", meet: "tower_foot", explain: "tower_foot", village: "village_plaza", bakery: "bakery", forest: "forest",
+  campfire: "campfire", river: "riverbank", boat: "boat", mirror: "mirror", library: "library", ruins: "temple_ruins",
+  night: "dune_night", melody: "dune_night", boss: "tower_top", sacrifice: "gear_chamber", end_true: "hand_holding",
+  end_normal: "night_sky", end_bad: "frozen_world", end_still: "tower_still"
+};
+eq(Object.keys(STORY.scenes).reduce(function (o, id) { o[id] = STORY.scenes[id].stage.bg; return o; }, {}), STAGE_BG, "シーン開始時の背景");
+eq([STORY.scenes.boss.enter, STORY.scenes.sacrifice.enter, STORY.scenes.end_true.enter], ["shake", "flash", "flash"], "シーンの enter");
+// 指示書で追加した論理名（未使用の smile_open / angry を含む）
+["smile", "smile_open", "angry", "sad", "eyes_closed"].forEach(function (e) {
+  eq(MANIFEST.characters.rine.poses.stand.exprs[e], "stand_" + e + ".webp");
+});
+eq(MANIFEST.characters.rine.poses.sit.exprs.eyes_closed, "sit_eyes_closed.webp");
+
+console.log("OK: " + checks + " 件の検査に合格（全 " + V3.length + " シーン × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");

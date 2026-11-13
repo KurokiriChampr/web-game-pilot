@@ -4,9 +4,10 @@
 
 ブラウザで遊べる、選択肢分岐型のテキストアドベンチャーゲームです。
 
-**現在のバージョン：ver 3.0-p1**（ver 3.0 の Phase 1＝エンジン縦切り試作。タイトル画面の右下と、設定画面の下部に表示されます）
+**現在のバージョン：ver 3.0-p2**（ver 3.0 の Phase 2＝全 20 シーンへの舞台割り当てと演出語彙の拡張。タイトル画面の右下と、設定画面の下部に表示されます）
 
-ver 3.0 Phase 1 の内容・検証結果・プレビュー方法は [`docs/v3-phase1-report.md`](docs/v3-phase1-report.md) を参照してください。
+- Phase 2 の内容・検証結果：[`docs/phase2-report-20261114.md`](docs/phase2-report-20261114.md)
+- Phase 1（エンジン縦切り）の内容・プレビュー方法：[`docs/v3-phase1-report.md`](docs/v3-phase1-report.md)
 
 ### 概要
 

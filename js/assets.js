@@ -137,14 +137,9 @@
     else layer.style.removeProperty("--bg-pos-portrait");
   }
 
-  /**
-   * 背景の候補。舞台の論理名（stage.bg → manifest.backgrounds）を先に試し、
-   * 無い・読めないときはシーンの image（従来の 1 枚絵）へ戻る。
-   */
-  function bgCandidates(entry, stage) {
+  /** 背景の論理名 → manifest.backgrounds の候補（無ければ空） */
+  function namedBgCandidates(name) {
     var out = [];
-    if (!settings.images) return out;
-    var name = stage && typeof stage.cg === "string" ? stage.cg : stage && stage.bg;
     var table = manifest && manifest.backgrounds;
     if (typeof name === "string" && table && typeof table === "object" && table[name] != null) {
       var def = table[name];
@@ -155,6 +150,18 @@
         });
       }
     }
+    return out;
+  }
+
+  /**
+   * 背景の候補。舞台の論理名（stage.bg → manifest.backgrounds）を先に試し、
+   * 無い・読めないときはシーンの image（従来の 1 枚絵）へ戻る。
+   * 段落の bg でページ途中に論理名が変わると、候補の先頭が変わり、applyImage がクロスフェードで切り替える。
+   */
+  function bgCandidates(entry, stage) {
+    if (!settings.images) return [];
+    var name = stage && typeof stage.cg === "string" ? stage.cg : stage && stage.bg;
+    var out = namedBgCandidates(name);
     candidates(entry.image).forEach(function (url) {
       out.push({ url: url, position: entry.position, positionPortrait: entry.positionPortrait });
     });
@@ -456,11 +463,17 @@
     syncCharaLayer();
   }
 
-  /** シーンで使う立ち絵を先に読み込んでおく（表情切替の初回で待たせない） */
-  function preload(list) {
+  /** シーンで使う立ち絵と背景（論理名）を先に読み込んでおく（表情切替・背景切替の初回で待たせない） */
+  function preload(list, bgNames) {
     if (manifestState !== "ready" || !settings.images) return;
     (list || []).forEach(function (c) {
       var urls = resolveChara(c).urls;
+      if (urls.length) loadFirst(urls, function () {});
+    });
+    (bgNames || []).forEach(function (name) {
+      var urls = namedBgCandidates(name).map(function (item) {
+        return item.url;
+      });
       if (urls.length) loadFirst(urls, function () {});
     });
   }

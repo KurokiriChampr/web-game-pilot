@@ -24,7 +24,9 @@ var childProcess = require("child_process");
 
 var ROOT = path.resolve(__dirname, "..");
 var BASELINE = path.join(__dirname, "baseline", "v2.1-text.json");
-var V3_SCENES = ["meet", "explain"]; // 新形式に移行済みのシーン
+// 段落オブジェクトに書いてよい項目（本文 text と舞台指示だけ。分岐や効果に関わる項目は置かない）
+var PAGE_KEYS = ["text", "speaker", "chara", "pose", "expr", "pos", "show", "hide", "bg", "cg", "halo", "fx"];
+var STAGE_KEYS = ["bg", "cg", "halo", "show"];
 var AFFECTION_RANGE = { min: -6, max: 20 }; // 取りうる値（-3〜13）より広く取る
 
 function loadStoryFromSource(source, label) {
@@ -264,23 +266,35 @@ function verify() {
     });
   }
 
-  // 新形式（オブジェクトの段落・stage 指定）にしてよいのは Phase 1 では meet / explain だけ
+  // Phase 2 で全シーンが新形式（stage 指定つき）。段落は「文字列」か「text＋舞台指示だけのオブジェクト」であること
   var rawForms = 0;
   base.sceneIds.forEach(function (id) {
     var scene = story.scenes[id];
-    if (!scene || V3_SCENES.indexOf(id) !== -1) return;
-    if (scene.stage !== undefined) errors.push("範囲外のシーンに stage 指定があります: " + id);
+    if (!scene) return;
+    if (!scene.stage || typeof scene.stage !== "object") errors.push("stage 指定がありません: " + id);
+    else {
+      Object.keys(scene.stage).forEach(function (k) {
+        if (STAGE_KEYS.indexOf(k) === -1) errors.push("stage に想定外の項目があります: " + id + "." + k);
+      });
+    }
+    var reported = {};
     for (var n = 0; n < now.combos; n++) {
       var raw = typeof scene.text === "function" ? scene.text(stateFor(now.flags, n)) : scene.text;
       rawForms += 1;
-      if (
-        !raw.every(function (p) {
-          return typeof p === "string";
-        })
-      ) {
-        errors.push("範囲外のシーンに文字列以外の段落があります: " + id);
-        break;
-      }
+      raw.forEach(function (p) {
+        if (typeof p === "string") return;
+        if (!p || typeof p !== "object" || Array.isArray(p) || typeof p.text !== "string") {
+          if (!reported._form) errors.push("段落の形が不正です: " + id);
+          reported._form = true;
+          return;
+        }
+        Object.keys(p).forEach(function (k) {
+          if (PAGE_KEYS.indexOf(k) === -1 && !reported[k]) {
+            reported[k] = true;
+            errors.push("段落に舞台指示以外の項目があります: " + id + "." + k);
+          }
+        });
+      });
     }
   });
 
@@ -295,7 +309,7 @@ function verify() {
   console.log("基準: " + base.source.commit + "（" + base.source.ref + "）");
   report(now);
   console.log("  照合 " + compared + " 展開（" + base.sceneIds.length + " シーン × " + base.combos + " 通り）");
-  console.log("  範囲外 " + (base.sceneIds.length - V3_SCENES.length) + " シーンの段落が文字列のみであること: " + rawForms + " 展開");
+  console.log("  全 " + base.sceneIds.length + " シーンに stage があり、段落の項目が本文＋舞台指示だけであること: " + rawForms + " 展開");
   console.log("  選択肢の照合 " + Object.keys(base.choices).length + " シーン / シーン属性 " + Object.keys(base.meta).length + " シーン");
   if (!errors.length && now.sha256 !== base.sha256) errors.push("sha256 が一致しません");
   if (errors.length) {
