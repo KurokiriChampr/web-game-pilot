@@ -17,7 +17,7 @@ var path = require("path");
 var fs = require("fs");
 var createServer = require("./preview-server.js").createServer;
 
-var KEYS = ["chrono-tale-auto-v1", "chrono-tale-saves-v1", "chrono-tale-settings-v1", "chrono-tale-endings-v1", "chrono-tale-read-v1"];
+var KEYS = ["chrono-tale-save-v1", "chrono-tale-slots-v1", "chrono-tale-settings-v1", "chrono-tale-endings-v1", "chrono-tale-read-v1"];
 var shotsDir = process.argv.indexOf("--shots") !== -1 ? process.argv[process.argv.indexOf("--shots") + 1] : null;
 var checks = 0;
 function same(a, b, msg) {
