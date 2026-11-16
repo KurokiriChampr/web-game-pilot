@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja" data-app-version="3.0-p2">
+<html lang="ja" data-app-version="3.0-p3">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,9 +7,31 @@
   <meta name="theme-color" content="#0b0c2a">
   <title>刻（とき）の女神と止まった世界</title>
   <!-- 版を上げるときは、下の ?v= と data-app-version、js/game.js の VERSION を同じ値にそろえる -->
-  <link rel="stylesheet" href="css/style.css?v=3.0-p2">
+  <link rel="stylesheet" href="css/style.css?v=3.0-p3">
 </head>
 <body class="theme-title">
+  <!-- 操作アイコン（インライン SVG。<use href="#i-…"> で使う。絵文字は端末ごとに絵柄が変わるので使わない） -->
+  <svg class="icon-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-log" viewBox="0 0 24 24"><path d="M3 5.5c3-1.2 6-1.2 9 .5 3-1.7 6-1.7 9-.5v13c-3-1.2-6-1.2-9 .5-3-1.7-6-1.7-9-.5z"/><path d="M12 6v13"/></symbol>
+      <symbol id="i-auto" viewBox="0 0 24 24"><path d="M8 5.5l10 6.5-10 6.5z"/></symbol>
+      <symbol id="i-skip" viewBox="0 0 24 24"><path d="M4 6l7 6-7 6z"/><path d="M12 6l7 6-7 6z"/><path d="M21 6v12"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3.5h11l3.5 3.5v12.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M8 3.5v5h7v-5"/><path d="M8 20.5v-7h8v7"/></symbol>
+      <symbol id="i-load" viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M12 11v5"/><path d="M9.5 13.5L12 11l2.5 2.5"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6.5h16"/><path d="M4 12h16"/><path d="M4 17.5h16"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1"/><path d="M3.5 16l5-5 4 4 3-3 5 5"/><circle cx="15.5" cy="9" r="1.2"/></symbol>
+      <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4.5 4v5h5"/></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+      <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
+      <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l5 4v-13l-5 4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 5L4 10l5 5"/><path d="M4 10h9a5 5 0 0 1 0 10h-3"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.8-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.500 15.2 12 20 12 20z"/></symbol>
+      <symbol id="i-shard" viewBox="0 0 24 24"><path d="M12 3l6 9-6 9-6-9z"/></symbol>
+    </defs>
+  </svg>
   <div class="sky" aria-hidden="true"></div>
 
   <!-- 背景画像（assets/manifest.json で指定されたファイルがあるときだけ表示。無ければテーマ別グラデーション） -->
@@ -33,7 +55,12 @@
       <header class="title-logo">
         <div class="title-emblem" aria-hidden="true">
           <div class="title-ring"></div>
-          <div class="title-clock">⏳</div>
+          <!-- 文字盤の針（SVG）。ふだんは止まっていて、4 つの結末をすべて見ると動き出す（body.is-timeflow） -->
+          <svg class="title-hands" viewBox="0 0 96 96" focusable="false">
+            <line class="hand hand-hour" x1="48" y1="48" x2="48" y2="29"></line>
+            <line class="hand hand-min" x1="48" y1="48" x2="48" y2="17"></line>
+            <circle class="hand-pin" cx="48" cy="48" r="2.8"></circle>
+          </svg>
         </div>
         <p class="title-sub">異世界転生テキストアドベンチャー</p>
         <h1 class="title-main">刻の女神と<br>止まった世界</h1>
@@ -45,7 +72,10 @@
 
       <nav class="title-menu" aria-label="メインメニュー">
         <button id="start-btn" class="title-btn title-btn-primary" type="button" data-action="start">はじめから</button>
-        <button id="continue-btn" class="title-btn" type="button" data-action="continue" hidden>つづきから</button>
+        <button id="continue-btn" class="title-btn" type="button" data-action="continue" hidden>
+          <span class="title-btn-main">つづきから</span>
+          <span id="continue-where" class="title-btn-sub"></span>
+        </button>
         <button id="title-load-btn" class="title-btn" type="button" data-action="load">ロード</button>
         <button id="title-settings-btn" class="title-btn" type="button" data-action="settings">設定</button>
       </nav>
@@ -58,28 +88,28 @@
     </div>
     <p class="title-foot">
       <span class="title-help">タップ / Enter で読み進め、選択肢は数字キーでも選べます</span>
-      <span id="app-version" class="title-version">ver 3.0-p2</span>
+      <span id="app-version" class="title-version">ver 3.0-p3</span>
     </p>
   </main>
 
   <!-- ゲーム画面 -->
   <div id="game-screen" class="screen game-screen" hidden>
-    <!-- 上部 HUD -->
+    <!-- 上部 HUD（状態表示：欠片・女神の心。操作は下部のクイックバーへ。音量だけはここに残す） -->
     <header class="hud">
-      <div class="hud-item" title="時の欠片">
+      <div id="hud-shards" class="hud-item" data-action="hud-shards" title="時の欠片">
         <span class="hud-label">欠片</span>
-        <span id="status-shards" class="hud-shards" role="img" aria-label="時の欠片">◇◇◇</span>
+        <span id="status-shards" class="hud-shards" role="img" aria-label="時の欠片"></span>
       </div>
-      <div class="hud-item" title="女神の心">
-        <span class="hud-label" aria-hidden="true">💗</span>
+      <div id="hud-heart" class="hud-item" data-action="hud-heart" title="女神の心">
+        <span class="hud-label hud-label-heart"><svg class="icon icon-fill" aria-hidden="true" focusable="false"><use href="#i-heart"></use></svg>心</span>
         <div id="heart-meter" class="heart-meter" role="meter" aria-label="女神の心" aria-valuemin="0" aria-valuemax="13" aria-valuenow="0">
           <div id="heart-fill" class="heart-fill"></div>
         </div>
       </div>
       <div class="hud-actions">
-        <button id="log-btn" class="hud-btn" type="button" data-action="log" aria-label="バックログ" title="バックログ (L)">📖</button>
-        <button id="mute-btn" class="hud-btn" type="button" data-action="mute" aria-label="BGM をミュート" aria-pressed="false" title="ミュート (M)">🔊</button>
-        <button id="menu-btn" class="hud-btn hud-btn-menu" type="button" data-action="menu" title="メニュー">☰<span class="btn-label">メニュー</span></button>
+        <button id="mute-btn" class="hud-btn" type="button" data-action="mute" aria-label="BGM をミュート" aria-pressed="false" title="ミュート (M)">
+          <svg class="icon" aria-hidden="true" focusable="false"><use id="mute-icon" href="#i-sound"></use></svg>
+        </button>
       </div>
     </header>
 
@@ -109,9 +139,10 @@
           <p id="ending-name" class="ending-name"></p>
           <p id="ending-progress" class="ending-progress"></p>
           <div class="ending-actions">
-            <button id="ending-restart" class="btn btn-primary" type="button" data-action="restart">↺ もう一度はじめから</button>
-            <button id="ending-load" class="btn" type="button" data-action="load">📂 ロード</button>
-            <button id="ending-title" class="btn" type="button" data-action="title">🏠 タイトルへ</button>
+            <button id="ending-retry" class="btn btn-primary" type="button" data-action="retry" hidden><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-back"></use></svg>最後の選択肢からやり直す</button>
+            <button id="ending-restart" class="btn" type="button" data-action="restart"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-restart"></use></svg>もう一度はじめから</button>
+            <button id="ending-load" class="btn" type="button" data-action="load"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-load"></use></svg>ロード</button>
+            <button id="ending-title" class="btn" type="button" data-action="title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-home"></use></svg>タイトルへ</button>
           </div>
         </section>
       </div>
@@ -129,7 +160,6 @@
             <span id="speaker-name" class="nameplate-speaker" hidden></span>
           </div>
           <p id="scene-step" class="scene-step">第1幕</p>
-          <button id="skip-btn" class="skip-btn" type="button" data-action="skip" hidden title="既読のシーンを選択肢まで飛ばす">⏭ スキップ</button>
         </div>
         <div id="scene-text" class="scene-text"></div>
         <div class="textbox-foot">
@@ -139,6 +169,27 @@
         </div>
       </div>
     </section>
+
+    <!-- 下部クイックバー（よく使う操作を親指の届く位置に集める。読み進めのタップ領域とは線で区切る） -->
+    <nav id="quickbar" class="quickbar" aria-label="操作">
+      <div class="quickbar-inner">
+        <button id="log-btn" class="qbtn" type="button" data-action="log" title="バックログ (L)">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-log"></use></svg><span class="qbtn-label">ログ</span>
+        </button>
+        <button id="auto-btn" class="qbtn" type="button" data-action="auto" aria-pressed="false" title="オート (A)">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-auto"></use></svg><span class="qbtn-label">オート</span>
+        </button>
+        <button id="skip-btn" class="qbtn" type="button" data-action="skip" disabled title="既読のページを、未読の手前まで飛ばす">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-skip"></use></svg><span class="qbtn-label">スキップ</span>
+        </button>
+        <button id="save-btn" class="qbtn" type="button" data-action="save" title="セーブ (S)">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save"></use></svg><span class="qbtn-label">セーブ</span>
+        </button>
+        <button id="menu-btn" class="qbtn" type="button" data-action="menu" title="メニュー">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-menu"></use></svg><span class="qbtn-label">メニュー</span>
+        </button>
+      </div>
+    </nav>
   </div>
 
   <!-- 背景鑑賞モード（タップで戻る） -->
@@ -152,13 +203,13 @@
     <div class="modal-body">
       <h2 id="menu-heading" class="modal-title">メニュー</h2>
       <div class="menu-list">
-        <button id="menu-save" class="btn" type="button" data-action="save">💾 セーブ</button>
-        <button id="menu-load" class="btn" type="button" data-action="load">📂 ロード</button>
-        <button id="menu-log" class="btn" type="button" data-action="log">📖 バックログ</button>
-        <button id="menu-settings" class="btn" type="button" data-action="settings">⚙ 設定</button>
-        <button id="menu-peek" class="btn" type="button" data-action="peek">🖼 背景を見る</button>
-        <button id="menu-restart" class="btn" type="button" data-action="restart">↺ 最初から</button>
-        <button id="menu-title" class="btn" type="button" data-action="title">🏠 タイトルへ</button>
+        <button id="menu-save" class="btn" type="button" data-action="save"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save"></use></svg>セーブ</button>
+        <button id="menu-load" class="btn" type="button" data-action="load"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-load"></use></svg>ロード</button>
+        <button id="menu-log" class="btn" type="button" data-action="log"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-log"></use></svg>バックログ</button>
+        <button id="menu-settings" class="btn" type="button" data-action="settings"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-settings"></use></svg>設定</button>
+        <button id="menu-peek" class="btn" type="button" data-action="peek"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-image"></use></svg>背景を見る</button>
+        <button id="menu-restart" class="btn" type="button" data-action="restart"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-restart"></use></svg>最初から</button>
+        <button id="menu-title" class="btn" type="button" data-action="title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-home"></use></svg>タイトルへ</button>
       </div>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
@@ -200,8 +251,27 @@
       </div>
       <label class="check">
         <input id="set-skip" type="checkbox">
-        <span>一度読んだシーンは一瞬で表示する</span>
+        <span>一度読んだページは一瞬で表示する</span>
       </label>
+      <div class="field">
+        <label for="set-auto">オートの速度 <output id="set-auto-label" for="set-auto">ふつう</output></label>
+        <input id="set-auto" type="range" min="0" max="2" step="1" value="1">
+      </div>
+
+      <div class="field">
+        <label for="set-font">文字の大きさ <output id="set-font-label" for="set-font">標準</output></label>
+        <input id="set-font" type="range" min="0" max="2" step="1" value="0">
+      </div>
+      <div class="field">
+        <label for="set-window">ウィンドウの濃さ <output id="set-window-label" for="set-window">ふつう</output></label>
+        <input id="set-window" type="range" min="0" max="2" step="1" value="1">
+      </div>
+      <!-- 見本：本文と同じ書体・大きさ・ウィンドウの濃さで表示する（背景は、いま出ている背景画像を写す） -->
+      <div id="settings-preview" class="settings-preview" aria-label="表示の見本">
+        <div class="settings-preview-window">
+          <p id="preview-text" class="settings-preview-text">これは表示の見本です。文字の大きさと、ウィンドウの濃さをここで確かめられます。</p>
+        </div>
+      </div>
 
       <div class="field">
         <label for="set-volume">BGM 音量 <output id="set-volume-label" for="set-volume">60</output></label>
@@ -222,18 +292,29 @@
       <p id="asset-status" class="modal-note"></p>
 
       <div class="field field-danger">
-        <button id="reset-data" class="btn btn-small" type="button" data-action="reset">🗑 セーブと記録をすべて消去</button>
+        <button id="reset-data" class="btn btn-small" type="button" data-action="reset"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash"></use></svg>セーブと記録をすべて消去</button>
       </div>
-      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 3.0-p2</span></p>
+      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 3.0-p3</span></p>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
       </div>
     </div>
   </dialog>
 
-  <script src="js/story.js?v=3.0-p2"></script>
-  <script src="js/stage.js?v=3.0-p2"></script>
-  <script src="js/assets.js?v=3.0-p2"></script>
-  <script src="js/game.js?v=3.0-p2"></script>
+  <!-- 確認（ブラウザ標準の confirm の代わり。ほかのダイアログの上に重ねて出す） -->
+  <dialog id="confirm-dialog" class="modal modal-confirm" role="alertdialog" aria-labelledby="confirm-message">
+    <div class="modal-body">
+      <p id="confirm-message" class="confirm-message"></p>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="btn btn-small" type="button" data-close>やめる</button>
+        <button id="confirm-ok" class="btn btn-small btn-primary" type="button">はい</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/story.js?v=3.0-p3"></script>
+  <script src="js/stage.js?v=3.0-p3"></script>
+  <script src="js/assets.js?v=3.0-p3"></script>
+  <script src="js/game.js?v=3.0-p3"></script>
 </body>
 </html>

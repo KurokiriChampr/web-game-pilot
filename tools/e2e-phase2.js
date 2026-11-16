@@ -256,7 +256,7 @@ async function run(browser) {
     return Object.keys(window.localStorage).sort();
   });
   same(keys.filter(function (k) { return KEYS.indexOf(k) === -1; }), [], "localStorage に既存 5 件以外のキーを作らない");
-  same(await page.evaluate(function () { return document.getElementById("app-version").textContent; }), "ver 3.0-p2");
+  same(await page.evaluate(function () { return document.getElementById("app-version").textContent; }), "ver 3.0-p3");
   await page.context().close();
   console.log("  ✓ 仮の絵つき：舞台割り当て・enter・段落 fx / bg・名前札");
 

@@ -178,6 +178,16 @@ async function choose(page, n) {
   }, before);
 }
 
+/** 自前の確認ダイアログ（ver 3.0-p3〜。それ以前はブラウザ標準の confirm で、open() の dialog ハンドラが受ける） */
+async function acceptConfirm(page, required) {
+  var shown = await page.locator("#confirm-dialog[open]").count();
+  if (required) assert.ok(shown, "確認ダイアログが出る");
+  if (shown) {
+    await page.click("#confirm-ok");
+    await page.waitForSelector("#confirm-dialog:not([open])", { state: "attached" });
+  }
+}
+
 async function loadSlot(page, label) {
   var fromTitle = await page.evaluate(function () {
     return !document.getElementById("title-screen").hidden;
@@ -188,7 +198,9 @@ async function loadSlot(page, label) {
     await page.click("#menu-load");
   }
   await page.locator("#saves-list .save-row", { hasText: label }).locator("button", { hasText: "ロード" }).click();
+  await acceptConfirm(page, !fromTitle); // プレイ中のロードは確認が出る
   await page.waitForSelector("#game-screen:not([hidden])");
+  await page.waitForSelector("#saves-list", { state: "hidden" });
 }
 
 async function backlog(page) {
@@ -290,6 +302,9 @@ async function run(browser) {
   var fixture = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
   var plain = createServer({});
   var withArt = createServer({ placeholders: true });
+  // 実素材（立ち絵・論理名の背景）が入ったあとも「素材が無いとき」を確かめられるよう、その 2 フォルダだけ無いことにする
+  var bare = createServer({ hide: /^assets\/images\/(chara|bg)\// });
+  var bareUrl = await listen(bare);
   var url = await listen(plain);
   var artUrl = await listen(withArt);
   var instant = { "chrono-tale-settings-v1": JSON.stringify({ textSpeed: 3, skipRead: false, volume: 0.6, muted: true, images: true }) };
@@ -302,19 +317,29 @@ async function run(browser) {
     same(await page.textContent("#ending-count"), "1 / 4", "エンディング記録を読める");
     same(await page.textContent("#scene-rate"), "7 / 20", "既読記録を読める");
 
-    // オートセーブ（campfire＝従来形式のシーン）
+    // オートセーブ（campfire。Phase 2 で全 20 シーンが新形式になったので、名前札は話者、シーン名は「第 n 幕」の側）
     await page.click("#continue-btn");
     await settle(page);
     var v = await view(page);
-    same([v.title, v.step, v.titleVisible], ["揺れる焚き火", "第7幕", true], "オートセーブの続きから再開");
+    same([v.title, v.step, v.titleVisible, v.speaker], ["揺れる焚き火", "第7幕　揺れる焚き火", false, "リーネ"], "オートセーブの続きから再開");
     check(v.text.indexOf("獣の爪はあなたの腕を裂いた") === 0, "フラグ（brave）どおりの本文");
     var old = logOf(fixture);
     var log = await backlog(page);
     check(log.text.indexOf("[object") === -1 && log.who.length === 0, "旧バックログをそのまま表示");
-    same(log.paras, old.log.reduce(function (n, e) { return n + (e.paras ? e.paras.length : 0); }, 0), "旧バックログの段落数");
+    // ver 3.0-p3〜：いま読んでいるシーン（campfire）は「読んだページまで」だけを出す。保存されている段落は減らさない
+    var oldParas = old.log.reduce(function (n, e) { return n + (e.paras ? e.paras.length : 0); }, 0);
+    var current = old.log[old.log.length - 1];
+    check(current.k === "s" && current.paras.length === 3, "旧セーブの末尾は campfire の 3 段落");
+    same(log.paras, oldParas - (current.paras.length - 1), "旧バックログの段落数（読んでいる途中：1 ページ目まで）");
+    check(log.text.indexOf(current.paras[0]) !== -1 && log.text.indexOf(current.paras[1]) === -1, "未読のページはバックログに出ない");
+    same(logOf(await dumpStorage(page)).log, old.log, "保存されているバックログは旧データのまま（表示だけで絞る）");
+    await readScene(page);
+    log = await backlog(page);
+    same(log.paras, oldParas, "旧バックログの段落数（最後まで読んだあと）");
+    check(log.text.indexOf(current.paras[2]) !== -1, "読み終えたページはバックログに出る");
 
     // スロット 1〜3（meet / explain は新形式に移行したシーン）
-    var expected = { 1: ["時計塔の少女", "第2幕　時計塔の少女"], 2: ["時の女神リーネ", "第3幕　時の女神リーネ"], 3: ["揺れる焚き火", "第7幕"] };
+    var expected = { 1: ["時計塔の少女", "第2幕　時計塔の少女"], 2: ["時の女神リーネ", "第3幕　時の女神リーネ"], 3: ["揺れる焚き火", "第7幕　揺れる焚き火"] };
     for (var n = 1; n <= 3; n++) {
       await loadSlot(page, "スロット " + n);
       await settle(page);
@@ -340,6 +365,7 @@ async function run(browser) {
     same(Object.keys(after).sort(), KEYS.slice().sort(), "localStorage のキーは 5 件のまま");
     var st = logOf(after);
     same(Object.keys(st).sort(), ["affection", "flags", "log", "scene", "shards", "steps"], "セーブの形は v2.1 と同じ");
+    same(Object.keys(JSON.parse(after[KEYS[2]])[1].state).sort(), ["affection", "flags", "log", "scene", "shards", "steps"], "スロットの形も同じ");
     check(allParasAreStrings(st), "バックログの paras は文字列の配列のまま");
     same([st.scene, st.affection, st.steps, st.flags.petal], ["village", 3, 3, true]);
     same(JSON.parse(after[KEYS[3]]), JSON.parse(fixture[KEYS[3]]), "設定は変わらない");
@@ -347,21 +373,26 @@ async function run(browser) {
     log = await backlog(page);
     check(log.text.indexOf("[object") === -1, "新旧まじりのバックログに [object Object] が出ない");
     // meet のログは旧セーブに入っていたもの（話者名なし）。v3 で読んだ explain から話者名が付く
-    same(log.who, ["リーネ", "リーネ", "リーネ"], "バックログの話者名");
+    // explain の 3 件。village（petal あり）の話者は 3 ページ目なので、1 ページ目の時点ではまだ出ない
+    same(log.who, ["リーネ", "リーネ", "リーネ"], "バックログの話者名（village は 1 ページ目まで）");
+    await readScene(page);
+    log = await backlog(page);
+    same(log.who, ["リーネ", "リーネ", "リーネ", "リーネ"], "バックログの話者名（village を最後まで読んだあと）");
     same(page.errors, [], "スクリプトエラーなし");
     v3Storage = after;
     await page.context().close();
   });
 
-  await section("素材なしのフォールバック（立ち絵ファイル 0 個の現状）", async function () {
-    var page = await open(browser, url, PORTRAIT, instant);
+  await section("素材なしのフォールバック（立ち絵・論理名の背景が無い状態を再現）", async function () {
+    var page = await open(browser, bareUrl, PORTRAIT, instant);
     var failed = [];
     page.on("requestfailed", function (r) { failed.push(r.url()); });
     var notFound = [];
-    page.on("response", function (r) { if (r.status() === 404) notFound.push(r.url().replace(url, "")); });
+    page.on("response", function (r) { if (r.status() === 404) notFound.push(r.url().replace(bareUrl, "")); });
     await page.click("#start-btn");
     var a = await readScene(page);
-    same([a[0].title, a[0].step, a[0].titleVisible, a[0].speaker], ["止まった草原", "第1幕", true, ""], "従来形式のシーンは v2.1 と同じ名前札");
+    same([a[0].title, a[0].step, a[0].titleVisible, a[0].speaker], ["止まった草原", "第1幕　止まった草原", false, ""], "地の文だけのシーン：名前札は隠し、シーン名は「第 n 幕」の側に出す");
+    same(a[0].bg, "assets/images/awakening.jpg");
     same(a[0].charas, []);
     await choose(page, 2);
     var m = await readScene(page, async function (v, i) { if (i === 3) await shot(page, "fallback-meet-390x844"); });
@@ -380,7 +411,8 @@ async function run(browser) {
     await choose(page, 1);
     await settle(page);
     var v = await view(page);
-    same([v.title, v.step, v.titleVisible], ["涙の止まった村", "第4幕", true], "次の従来シーンで名前札が元に戻る");
+    same([v.title, v.step, v.titleVisible, v.speaker], ["涙の止まった村", "第4幕　涙の止まった村", false, ""], "次のシーンの先頭（地の文）でも名前札は隠れたまま");
+    same([v.charas.length, v.hasChar, v.bg], [0, false, "assets/images/village.jpg"], "論理名の背景が無ければシーンの 1 枚絵へ戻る");
     check(notFound.some(function (u) { return u.indexOf("images/chara/rine/sit_down.webp") !== -1; }), "立ち絵は論理名どおりのパスを取りに行く");
     check(notFound.some(function (u) { return u.indexOf("images/bg/tower_foot.webp") !== -1; }));
     same(page.errors, [], "スクリプトエラーなし");
@@ -395,7 +427,21 @@ async function run(browser) {
       campfire: { slot: "スロット 3", land: "50% 50%", port: "50% 50%" } // 指定なし＝中央（v2.1 と同じ）
     };
     check(slots[1].state.scene === "meet" && slots[2].state.scene === "explain");
-    var page = await open(browser, url, LANDSCAPE, fixture);
+    // 実素材あり：meet / explain は論理名の背景 tower_foot（backgrounds の position / positionPortrait）を使う
+    var real = await open(browser, url, LANDSCAPE, fixture);
+    for (var slotName of ["スロット 1", "スロット 2"]) {
+      await real.setViewportSize(LANDSCAPE);
+      await loadSlot(real, slotName);
+      await settle(real);
+      var rv = await view(real);
+      same([rv.bg, rv.bgPos], ["assets/images/bg/tower_foot.webp", "50% 40%"], slotName + " 横長（tower_foot）");
+      await real.setViewportSize(PORTRAIT);
+      same((await view(real)).bgPos, "50% 45%", slotName + " 縦（tower_foot）");
+    }
+    same(real.errors, []);
+    await real.context().close();
+    // 論理名の背景が無い状態：シーンの 1 枚絵（scenes の position / positionPortrait）へ戻る
+    var page = await open(browser, bareUrl, LANDSCAPE, fixture);
     for (var id of Object.keys(want)) {
       await page.setViewportSize(LANDSCAPE);
       await loadSlot(page, want[id].slot);
@@ -484,7 +530,7 @@ async function run(browser) {
     same(loaded.charas.map(function (x) { return [x.file, x.halo, x.pos]; }), e.slice(0, 1).map(function (x) { return [x.charas[0].file, x.charas[0].halo, x.charas[0].pos]; }), "ロード直後の立ち絵＝1 ページずつ進めたときの先頭");
 
     // 既読スキップ：最終ページへ飛んでも、1 ページずつ進めたときと同じ状態
-    check(await page.isVisible("#skip-btn"), "既読シーンにスキップが出る");
+    check((await page.isVisible("#skip-btn")) && (await page.isEnabled("#skip-btn")), "既読シーンではスキップを押せる");
     await page.click("#skip-btn");
     await settle(page);
     var skipped = await view(page);
@@ -502,6 +548,7 @@ async function run(browser) {
     // meet をスキップで飛ばす（「一度読んだシーンは一瞬で表示」＋スキップ）
     await page.click("#menu-btn");
     await page.click("#menu-restart");
+    await acceptConfirm(page, true);
     await page.waitForFunction(function () { return document.getElementById("scene-title").textContent === "止まった草原"; });
     await page.click("#skip-btn");
     await choose(page, 1);
@@ -573,6 +620,7 @@ async function run(browser) {
 
   plain.close();
   withArt.close();
+  bare.close();
 }
 
 (async function () {

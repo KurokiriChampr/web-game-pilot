@@ -9,6 +9,9 @@
  * 実素材が届く前に、立ち絵の位置・表情切替・光輪の追随を画面で確かめるためのもの。
  * リポジトリにダミーファイルは置かない（仮の絵はメモリ上で作るだけ）。
  * 付けない場合は実ファイルだけを返すので、「素材が無いときのフォールバック」を確かめられる。
+ *
+ * createServer({ hide: /正規表現/ }) を渡すと、パスが一致するファイルを「存在しない」ものとして 404 を返す
+ * （実素材が入ったあとでも、素材が無い状態のフォールバックを検査するためのもの。tools/e2e.js が使う）。
  */
 "use strict";
 
@@ -109,7 +112,12 @@ function createServer(options) {
       res.end();
       return;
     }
-    fs.readFile(file, function (err, data) {
+    var hidden = options.hide instanceof RegExp && options.hide.test(rel);
+    (hidden
+      ? function (f, cb) {
+          cb(new Error("hidden"));
+        }
+      : fs.readFile)(file, function (err, data) {
       if (!err) {
         res.writeHead(200, { "Content-Type": TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store" });
         res.end(data);
