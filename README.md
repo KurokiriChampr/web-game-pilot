@@ -4,8 +4,10 @@
 
 ブラウザで遊べる、選択肢分岐型のテキストアドベンチャーゲームです。
 
-**現在のバージョン：ver 3.0-p3**（GUI・機能アップデート＝読み返し・やり直しの導線、下部クイックバー、オート、ページ単位の既読。タイトル画面の右下と、設定画面の下部に表示されます）
+**現在のバージョン：ver 3.0-p4**（エンジンの汎用化＝立ち絵 3 人までの同時表示、長編規模への備え、エンジンと作品データの分離。本作の遊び・見た目は 3.0-p3 から変えていません。版はタイトル画面の右下と、設定画面の下部に表示されます）
 
+- ver 3.0-p4 の内容・検証結果：[`docs/gui-generalize-report-20261117.md`](docs/gui-generalize-report-20261117.md)
+- エンジンと作品データの境界、別作品へ持ち出す手順：[`docs/ENGINE.md`](docs/ENGINE.md)
 - ver 3.0-p3 の内容・検証結果：[`docs/gui-feature-implement-report-20261116.md`](docs/gui-feature-implement-report-20261116.md)
 - Phase 2 の内容・検証結果：[`docs/phase2-report-20261114.md`](docs/phase2-report-20261114.md)
 - Phase 1（エンジン縦切り）の内容・プレビュー方法：[`docs/v3-phase1-report.md`](docs/v3-phase1-report.md)
@@ -63,17 +65,34 @@
 ### ファイル構成
 
 ```
-index.html            … エントリーポイント（タイトル・ゲーム画面・各ダイアログ）
-css/style.css         … スタイル（VN レイアウト、テーマ、演出、レスポンシブ対応）
+【作品（この作品に固有のもの）】
+js/work.js            … 作品設定（題名・用語・保存キーの接頭辞・スロット数など）
 js/story.js           … シナリオデータ（シーン・選択肢・分岐条件・演出指定）
-js/stage.js           … ページの正規化と舞台状態の計算（誰が・どのポーズ・どの表情・どの位置か）
-js/assets.js          … 画像・立ち絵（複数枠）・光輪・BGM の管理（マニフェスト読み込み、フェード、音量）
-tools/                … 検証スクリプト（本文不変の照合、舞台状態のテスト、ブラウザ自動確認、プレビュー用サーバ）
-js/game.js            … ゲームエンジン（状態管理・文字送り・セーブ・バックログ・設定）
+css/work.css          … 作品の配色（シーンのテーマ色）
 assets/manifest.json  … シーンIDと画像・立ち絵・BGM ファイルの対応表
 assets/images/        … 背景画像・立ち絵の置き場所
 assets/bgm/           … BGM の置き場所
+
+【エンジン（作品に依らない共通部分）】
+index.html            … 画面の骨組み（タイトル・ゲーム画面・各ダイアログ）。題名まわりの文言は作品設定から入る
+css/style.css         … 見た目（VN レイアウト、立ち絵の並べ方、演出、レスポンシブ対応）
+js/stage.js           … ページの正規化と舞台状態の計算（誰が・どのポーズ・どの表情・どの位置か。同時に最大 3 人）
+js/assets.js          … 画像・立ち絵（複数枠）・光輪・BGM の管理（マニフェスト読み込み、フェード、音量）
+js/game.js            … ゲームエンジン（状態管理・文字送り・既読・セーブ・バックログ・設定）
+tools/                … 検証スクリプト（本文不変の照合、舞台状態のテスト、物語データの点検、ブラウザ自動確認、プレビュー用サーバ）
+tools/fixtures/       … 検証用のデータ（3 人表示の別作品、長編規模の生成スクリプト）。本作のデータではない
+
+docs/ENGINE.md        … エンジンと作品データの境界、別作品へ持ち出す手順
 docs/ASSETS.md        … 画像・立ち絵・BGM の差し込み手順
+```
+
+検査の実行：
+
+```sh
+node tools/verify-text.js      # 本文・選択肢が基準と一致するか
+node tools/test-stage.js       # 舞台状態の単体テスト（3 人までの規則、章、物語データの点検を含む）
+node tools/validate-story.js   # 物語データの点検（行き先の無い選択肢、manifest に無い素材など）
+node tools/e2e.js && node tools/e2e-phase2.js && node tools/e2e-p3.js && node tools/e2e-p4.js   # ブラウザ自動確認
 ```
 
 シナリオを編集したい場合は `js/story.js` を変更してください。各シーンは本文・選択肢・効果（好感度／欠片／フラグ）・表示条件をデータとして持っています。
@@ -106,7 +125,7 @@ docs/ASSETS.md        … 画像・立ち絵・BGM の差し込み手順
 
 **バージョンを上げるとき**
 
-`index.html` の `data-app-version` と 5 か所の `?v=`、`js/game.js` の `VERSION` を同じ値にそろえてください。画面部品（id）を足したときは `js/game.js` の `ELEMENT_IDS` にも加えます。そろっているかは `node tools/e2e-p3.js` が照合します。
+`index.html` の `data-app-version` と 7 か所の `?v=`、`js/game.js` の `VERSION` を同じ値にそろえてください。画面部品（id）を足したときは `js/game.js` の `ELEMENT_IDS` にも加えます。そろっているかは `node tools/e2e-p3.js` が照合します。
 
 ### 第1次アップグレードの変更点
 

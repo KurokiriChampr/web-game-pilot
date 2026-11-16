@@ -9,6 +9,7 @@
  * - 値は文字列、または候補の配列（先頭から順に試す）。null は「このシーンでは無し」。
  * - ver 3.0〜：manifest の backgrounds（背景の論理名）と characters（人物 → ポーズ → 表情）を読み、
  *   js/stage.js が求めた舞台状態（誰が・どのポーズ・どの表情・どの位置）を複数枠の立ち絵として表示する。
+ *   同時に並ぶのは最大 3 人（左／中央／右）。話者は .is-speaker、話者でない人は .is-dim（見せ方は css）。
  *   論理名に対応するファイルが無いときは、その枠（背景ならシーンの image）へ静かに戻る。
  *
  * 書式とファイルの差し込み手順は docs/ASSETS.md を参照。
@@ -288,10 +289,12 @@
 
   /** 論理名（人物・ポーズ・表情）→ 画像 URL の候補と光輪の位置。無ければ urls は空 */
   function resolveChara(c) {
-    var out = { urls: [], halo: null };
+    var out = { urls: [], halo: null, scale: 1 };
     var table = manifest && manifest.characters;
     var def = table && typeof table === "object" ? table[c.id] : null;
     if (!def || typeof def !== "object") return out;
+    // 人物ごとの背丈の比（省略＝1）。背の低い人・高い人を、同じ画像サイズのまま並べるためのもの
+    if (isFinite(def.scale) && def.scale >= 0.5 && def.scale <= 1.5) out.scale = Number(def.scale);
     var pose = def.poses && typeof def.poses === "object" ? def.poses[c.pose] : null;
     if (!pose || typeof pose !== "object") return out;
     var file = pose.exprs && typeof pose.exprs === "object" ? pose.exprs[c.expr] : null;
@@ -318,16 +321,21 @@
     var out = [];
     if (!settings.images) return out;
     if (stage) {
-      (stage.charas || []).forEach(function (c) {
+      // 話者（舞台にいる人）。複数人が同時に話すこともある（stage.speakerCharas。旧い呼び出しは speakerChara だけ）
+      var speakers = Array.isArray(stage.speakerCharas) ? stage.speakerCharas : stage.speakerChara ? [stage.speakerChara] : [];
+      (stage.charas || []).slice(0, CHAR_POSITIONS.length).forEach(function (c) {
         var r = resolveChara(c);
         if (!r.urls.length) return;
+        var speaking = speakers.indexOf(c.id) !== -1;
         out.push({
           id: c.id,
           pos: CHAR_POSITIONS.indexOf(c.pos) !== -1 ? c.pos : "center",
           urls: r.urls,
           halo: r.halo,
+          scale: r.scale,
           haloState: stage.halo || "weak",
-          dim: !!stage.speakerChara && stage.speakerChara !== c.id,
+          speaking: speaking, // 話者：2 人以上並ぶときだけ、手前に出して少し大きく見せる（css）
+          dim: speakers.length > 0 && !speaking, // 話者でない人は沈める。地の文では全員ふつうの明るさ
           fx: stage.fx || []
         });
       });
@@ -341,7 +349,9 @@
         pos: CHAR_POSITIONS.indexOf(entry.characterPosition) !== -1 ? entry.characterPosition : "center",
         urls: legacy,
         halo: null,
+        scale: 1,
         haloState: "off",
+        speaking: false,
         dim: false,
         fx: []
       });
@@ -403,6 +413,9 @@
     var node = slot.node;
     node.setAttribute("data-pos", want.pos);
     node.classList.toggle("is-dim", want.dim);
+    node.classList.toggle("is-speaker", !!want.speaking);
+    if (want.scale && want.scale !== 1) node.style.setProperty("--chara-scale", String(want.scale));
+    else node.style.removeProperty("--chara-scale");
 
     if (want.halo) {
       if (!slot.halo) {

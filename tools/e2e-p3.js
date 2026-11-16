@@ -33,7 +33,7 @@ var ENDINGS = KEYS[1];
 var SLOTS = KEYS[2];
 var SETTINGS = KEYS[3];
 var READ = KEYS[4];
-var VERSION = "3.0-p3";
+var VERSION = "3.0-p4"; // いまの版（この検査が見る機能は 3.0-p3 で入ったもの。版表記は以後の版でも照合する）
 var SMALL = { width: 360, height: 640 };
 var PORTRAIT = { width: 390, height: 844 };
 var LANDSCAPE = { width: 1366, height: 768 };
@@ -280,7 +280,8 @@ function staticChecks() {
   var js = fs.readFileSync(path.join(ROOT, "js", "game.js"), "utf8");
   same((/data-app-version="([^"]+)"/.exec(html) || [])[1], VERSION, "index.html の data-app-version");
   var queries = html.match(/\?v=[\w.-]+(?=")/g) || [];
-  same(queries, ["?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION], "?v= は 5 か所とも同じ版");
+  // ver 3.0-p4〜：css/work.css と js/work.js が増えて 7 か所
+  same(queries, ["?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION], "?v= は 7 か所とも同じ版");
   same((/var VERSION = "([^"]+)"/.exec(js) || [])[1], VERSION, "game.js の VERSION");
   same((html.match(/ver 3\.0-p\d+/g) || []).filter(function (v) { return v !== "ver " + VERSION; }), [], "画面に書いてある版表記");
   var block = /var ELEMENT_IDS = \{([\s\S]*?)\n {2}\};/.exec(js)[1];
@@ -299,8 +300,12 @@ function staticChecks() {
   });
   ok(!/window\.confirm|[^.\w]confirm\(/.test(js), "game.js はブラウザ標準の confirm を使わない");
   ok(!/\balert\(|\bprompt\(/.test(js), "alert / prompt も使わない");
-  var storageKeys = (js.match(/"chrono-tale-[a-z-]+v1"/g) || []).map(function (k) { return k.replace(/"/g, ""); });
+  // ver 3.0-p4〜：キー名は「作品 ID（js/work.js の id）＋ game.js にある役割の語尾」で組み立てる。
+  // 組み立てた結果が既存 5 件と同じであること（実際に作られるキーは、後ろの節で localStorage を見て確かめる）
+  var workId = require(path.join(ROOT, "js", "work.js")).id;
+  var storageKeys = (js.match(/WORK_ID \+ "-[a-z-]+v1"/g) || []).map(function (k) { return workId + k.replace(/^WORK_ID \+ "|"$/g, ""); });
   same(storageKeys.slice().sort(), KEYS.slice().sort(), "game.js の localStorage キーは既存 5 件のまま");
+  ok(!/"chrono-tale/.test(js), "game.js に作品固有のキー名を直接書いていない");
   notes.push("ELEMENT_IDS " + ids.length + " 件、?v= " + queries.length + " か所");
 }
 

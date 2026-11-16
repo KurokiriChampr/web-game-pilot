@@ -1,5 +1,8 @@
 /*
- * ゲームエンジン
+ * ゲームエンジン（作品に依らない共通部分）
+ * 作品ごとに変わるものは、このファイルには書かない：
+ *   js/work.js（WORK＝題名・用語・保存キーの接頭辞・上限値）／js/story.js（STORY＝物語データ）／
+ *   assets/manifest.json（素材の対応表）／css/work.css（配色）。境界の説明は docs/ENGINE.md。
  * 状態管理（シーン・好感度・欠片・フラグ）、画面描画、文字送り、
  * セーブ／ロード、バックログ（選択肢への巻き戻し）、既読（ページ単位）、オート、設定を担当する。
  * 画面はビジュアルノベル型（全面背景＋立ち絵＋下部メッセージウィンドウ）。
@@ -11,21 +14,50 @@
   "use strict";
 
   // 版を上げるときは index.html の data-app-version と ?v= も同じ値にする
-  var VERSION = "3.0-p3";
+  var VERSION = "3.0-p4";
 
   var STORY = window.STORY;
+  var WORK = window.WORK && typeof window.WORK === "object" ? window.WORK : {}; // 作品設定（js/work.js）
   var Assets = window.GameAssets;
   var Stage = window.GameStage; // ページの正規化と舞台状態の計算（js/stage.js）
 
+  /** 作品設定から値を取る。cfg("hud.shards.name", "欠片")。無い・型が違うときは fallback */
+  function cfg(path, fallback) {
+    var v = WORK;
+    var parts = path.split(".");
+    for (var i = 0; i < parts.length; i++) {
+      if (!v || typeof v !== "object") return fallback;
+      v = v[parts[i]];
+    }
+    return v == null || (fallback != null && typeof v !== typeof fallback) ? fallback : v;
+  }
+  function cfgInt(path, fallback, min, max) {
+    var n = parseInt(cfg(path, fallback), 10);
+    return n >= min && n <= max ? n : fallback;
+  }
+
+  // 保存キーは「作品 ID（WORK.id）＋役割」。同じサイトに別作品を置いても混ざらないようにするためのもの。
+  // 例：WORK.id が abc なら abc-save-v1 など。公開後に id を変えると、セーブを引き継げなくなる。
+  var WORK_ID = typeof WORK.id === "string" && /^[a-z0-9][a-z0-9-]*$/.test(WORK.id) ? WORK.id : "";
   var KEYS = {
-    auto: "chrono-tale-save-v1", // オートセーブ（旧バージョンと互換）
-    endings: "chrono-tale-endings-v1",
-    slots: "chrono-tale-slots-v1",
-    settings: "chrono-tale-settings-v1",
-    read: "chrono-tale-read-v1"
+    auto: WORK_ID + "-save-v1", // オートセーブ（旧バージョンと互換）
+    endings: WORK_ID + "-endings-v1",
+    slots: WORK_ID + "-slots-v1",
+    settings: WORK_ID + "-settings-v1",
+    read: WORK_ID + "-read-v1"
   };
-  var SLOT_COUNT = 3;
-  var LOG_LIMIT = 150;
+  var SLOT_COUNT = cfgInt("slots", 3, 1, 30);
+  // バックログ（＝セーブデータに入る）の上限。長編でセーブが際限なく太らないよう、3 つの物差しで抑える。
+  //   行数（シーンと選択肢の行）／ページ数（本文の量）／巻き戻し用の控え（フラグの写し）を持つ選択肢の数
+  // 本作（1 周 20 シーン未満・100 ページ未満）では、どれにも届かない。
+  var LOG_LIMIT = cfgInt("limits.logEntries", 150, 10, 2000);
+  var LOG_PAGE_LIMIT = cfgInt("limits.logPages", 600, 20, 20000);
+  var REWIND_LIMIT = cfgInt("limits.rewindPoints", 40, 1, 2000);
+  // 画面に出す用語（作品設定で差し替える。ここにあるのは、設定が無いときの一般的な言い方）
+  var SHARD_NAME = cfg("hud.shards.name", "欠片");
+  var SHARD_LABEL = cfg("hud.shards.label", "欠片");
+  var HEART_NAME = cfg("hud.heart.name", "好感度");
+  var HEART_LABEL = cfg("hud.heart.label", "好感度");
   // cps = 1秒あたりの文字数。0 は一瞬で表示。
   var SPEEDS = [
     { label: "ゆっくり", cps: 18 },
@@ -141,7 +173,7 @@
   function applyEffects(s, effects) {
     if (!effects) return;
     if (effects.affection) s.affection += effects.affection;
-    if (effects.shards) s.shards = Math.min(STORY.maxShards, s.shards + effects.shards);
+    if (effects.shards) s.shards = Math.min(STORY.maxShards || 0, s.shards + effects.shards);
     if (effects.flags) {
       Object.keys(effects.flags).forEach(function (k) {
         s.flags[k] = effects.flags[k];
@@ -179,13 +211,40 @@
       storageSet(key, list);
     }
   }
+  // ---------- 幕・章の呼び名 ----------
+  /**
+   * 「第 n 幕」にあたる呼び名。s は { scene, steps }（進行中の状態でもセーブデータでもよい）。
+   *   作品設定に stepLabel があればそれを使う ／ 結末は FIN ／ 章のあるシーンは章の題名 ／ それ以外は「第 n 幕」（従来どおり）
+   */
+  function stepLabelOf(s) {
+    var scene = STORY.scenes[s.scene];
+    var chapter = Stage.chapterOf(STORY, s.scene);
+    var steps = typeof s.steps === "number" ? s.steps : 0;
+    if (typeof WORK.stepLabel === "function") {
+      var own = WORK.stepLabel({ scene: s.scene, steps: steps, ending: !!(scene && scene.ending), chapter: chapter });
+      if (typeof own === "string" && own) return own;
+    }
+    if (scene && scene.ending) return "FIN";
+    if (chapter && chapter.title) return chapter.title;
+    return "第" + (steps + 1) + "幕";
+  }
+  function showsShards() {
+    return STORY.maxShards > 0 && WORK.hud !== false && cfg("hud.shards", true) !== false;
+  }
+  function showsHeart() {
+    return STORY.maxAffection > 0 && WORK.hud !== false && cfg("hud.heart", true) !== false;
+  }
   function seenEndings() {
     return listOf(KEYS.endings);
   }
   function readScenes() {
-    return listOf(KEYS.read).filter(function (id) {
+    return readData().list.filter(function (id) {
       return typeof id === "string" && !!STORY.scenes[id];
     });
+  }
+  /** エンディングの総数（STORY.endingCount。書いていない作品ではシナリオから数える） */
+  function endingTotal() {
+    return typeof STORY.endingCount === "number" ? STORY.endingCount : allEndings().length;
   }
   function allEndings() {
     return Object.keys(STORY.scenes)
@@ -216,7 +275,7 @@
   }
 
   // ---------- 既読（ページ単位・選んだ選択肢） ----------
-  // 既存の chrono-tale-read-v1（シーン ID の配列）に、別形式の要素として追記する。
+  // 既読のキー（<作品 ID>-read-v1。もとはシーン ID の配列）に、別形式の要素として追記する。
   //   "meet"        … シーンを最後まで読んだ（従来どおり。「読んだシーン n / 20」はこれだけを数える）
   //   "meet#1k2j3"  … そのシーンの、本文の指紋が 1k2j3 のページを読んだ
   //   "meet>9zx8"   … そのシーンで、文面の指紋が 9zx8 の選択肢を選んだことがある
@@ -227,23 +286,59 @@
   function choiceKey(sceneId, text) {
     return sceneId + ">" + Stage.hashText(text);
   }
-  function readSet() {
-    var set = {};
-    listOf(KEYS.read).forEach(function (k) {
-      if (typeof k === "string") set[k] = true;
+  //
+  // 長編では要素が数千〜数万になる。ページを送るたびに全体を読み直して線形に探すと重くなるので、
+  // 「保存されている文字列が前回と同じなら、前回ほどいた結果を使い回す」形にしている（保存形式は同じ配列のまま）。
+  // 別のタブや旧版が書き換えたときは文字列が変わるので、自動的に読み直す。
+  var readCache = { raw: undefined, list: [], set: {}, paged: {} };
+  function noteReadKey(cache, k) {
+    if (typeof k !== "string") return;
+    cache.set[k] = true;
+    var i = k.indexOf("#");
+    if (i > 0) cache.paged[k.slice(0, i)] = true; // そのシーンにページ単位の記録がある
+  }
+  /** { list: 保存されている配列, set: 文字列の要素の集合, paged: ページ単位の記録を持つシーン ID の集合 } */
+  function readData() {
+    var raw = null;
+    try {
+      raw = window.localStorage.getItem(KEYS.read);
+    } catch (e) {
+      raw = null;
+    }
+    if (raw === readCache.raw) return readCache;
+    var list = null;
+    try {
+      list = raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      list = null;
+    }
+    readCache = { raw: raw, list: Array.isArray(list) ? list : [], set: Object.create(null), paged: Object.create(null) };
+    readCache.list.forEach(function (k) {
+      noteReadKey(readCache, k);
     });
-    return set;
+    return readCache;
+  }
+  function readSet() {
+    return readData().set;
   }
   function markRead(keys) {
-    var list = listOf(KEYS.read);
-    var added = false;
-    keys.forEach(function (k) {
-      if (list.indexOf(k) === -1) {
-        list.push(k);
-        added = true;
-      }
+    var data = readData();
+    var fresh = keys.filter(function (k, i) {
+      return !data.set[k] && keys.indexOf(k) === i;
     });
-    if (added) storageSet(KEYS.read, list);
+    if (!fresh.length) return;
+    var list = data.list.concat(fresh);
+    var json = JSON.stringify(list);
+    try {
+      window.localStorage.setItem(KEYS.read, json);
+    } catch (e) {
+      return; // 保存できなければ覚えない（従来どおり。ゲームは続行できる）
+    }
+    data.list = list;
+    data.raw = json;
+    fresh.forEach(function (k) {
+      noteReadKey(data, k);
+    });
   }
   /**
    * いまのシーンの各ページが既読かどうか。
@@ -251,11 +346,9 @@
    * 最初に入ったときの段落構成を「読んだもの」として引き継ぐ（従来のシーン単位スキップと同じ扱い）。
    */
   function readFlags(sceneId, paras) {
-    var set = readSet();
-    var prefix = sceneId + "#";
-    var hasPageMarks = Object.keys(set).some(function (k) {
-      return k.indexOf(prefix) === 0;
-    });
+    var data = readData();
+    var set = data.set;
+    var hasPageMarks = !!data.paged[sceneId];
     var keys = paras.map(function (text) {
       return pageKey(sceneId, text);
     });
@@ -273,7 +366,26 @@
   // ---------- バックログ ----------
   function pushLog(entry) {
     state.log.push(entry);
-    if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
+    trimLog(state.log);
+  }
+  /** バックログを上限に収める（古い行から落とす。いちばん新しい行は必ず残す） */
+  function trimLog(log) {
+    if (log.length > LOG_LIMIT) log.splice(0, log.length - LOG_LIMIT);
+    var pages = 0;
+    var points = 0;
+    for (var i = log.length - 1; i >= 0; i--) {
+      var entry = log[i] || {};
+      if (entry.k === "c") {
+        // 巻き戻し用の控えは新しい方から REWIND_LIMIT 個まで。古い行は選択肢の文面だけを残す（「戻る」は出なくなる）
+        if (entry.s && (points += 1) > REWIND_LIMIT) delete entry.s;
+      } else {
+        pages += Array.isArray(entry.paras) ? entry.paras.length : 0;
+        if (pages > LOG_PAGE_LIMIT && i < log.length - 1) {
+          log.splice(0, i + 1);
+          break;
+        }
+      }
+    }
   }
   /** シーンの本文を、いまの状態で展開して正規化する（要素は必ず { text, ... }） */
   function scenePages(scene, s) {
@@ -631,9 +743,7 @@
     var resume = storageGet(KEYS.auto);
     var canResume = isValidSave(resume);
     els.continueBtn.hidden = !canResume;
-    els.continueWhere.textContent = canResume
-      ? "第" + ((resume.steps || 0) + 1) + "幕「" + STORY.scenes[resume.scene].title + "」"
-      : "";
+    els.continueWhere.textContent = canResume ? stepLabelOf(resume) + "「" + STORY.scenes[resume.scene].title + "」" : "";
 
     var seen = seenEndings();
     els.endingList.textContent = "";
@@ -654,18 +764,20 @@
 
   // ---------- ステータス ----------
   function renderStatus() {
+    els.hudShards.hidden = !showsShards();
+    els.hudHeart.hidden = !showsHeart();
     els.shards.textContent = "";
-    for (var i = 0; i < STORY.maxShards; i++) {
+    for (var i = 0; i < (STORY.maxShards || 0); i++) {
       var gem = icon("shard");
       gem.setAttribute("class", i < state.shards ? "icon shard is-on" : "icon shard");
       els.shards.appendChild(gem);
     }
-    els.shards.setAttribute("aria-label", "時の欠片 " + state.shards + " / " + STORY.maxShards);
+    els.shards.setAttribute("aria-label", SHARD_NAME + " " + state.shards + " / " + STORY.maxShards);
 
-    var ratio = Math.max(0, Math.min(1, state.affection / STORY.maxAffection));
+    var ratio = STORY.maxAffection > 0 ? Math.max(0, Math.min(1, state.affection / STORY.maxAffection)) : 0;
     els.heartFill.style.width = Math.round(ratio * 100) + "%";
     els.heartMeter.setAttribute("aria-valuenow", String(Math.max(0, state.affection)));
-    els.heartMeter.setAttribute("aria-valuemax", String(STORY.maxAffection));
+    els.heartMeter.setAttribute("aria-valuemax", String(STORY.maxAffection || 0));
   }
 
   // ---------- シーン ----------
@@ -701,9 +813,10 @@
     els.endingName.textContent = scene.ending.name;
     els.endingBox.setAttribute("data-kind", scene.ending.kind);
     var seen = seenEndings().length;
+    var total = endingTotal();
     els.endingProgress.textContent =
-      "見つけたエンディング：" + seen + " / " + STORY.endingCount +
-      (seen < STORY.endingCount ? "　――ほかの結末もあるようだ。" : "　――すべての結末を見届けた！");
+      "見つけたエンディング：" + seen + " / " + total +
+      (seen < total ? "　――ほかの結末もあるようだ。" : "　――すべての結末を見届けた！");
     // 直前の選択へ戻る。この結末に到達した画面から使うものなので、解放条件は付けない（控えの無い旧データでは出さない）
     els.endingRetry.hidden = lastChoiceIndex() === -1;
     els.choiceOverlay.hidden = true;
@@ -717,7 +830,7 @@
     var scene = currentScene();
     if (!scene) return;
     els.nextMark.hidden = true;
-    addTo(KEYS.read, state.scene);
+    markRead([state.scene]);
     clearAutoTimer(); // 選択肢は自動では選ばない（オートの状態は保ち、選んだあと次のシーンで再開する）
     if (scene.ending) {
       setAuto(false);
@@ -869,7 +982,7 @@
       return;
     }
     var id = state.scene;
-    var stepLabel = scene.ending ? "FIN" : "第" + (state.steps + 1) + "幕";
+    var stepLabel = stepLabelOf(state);
 
     stopTyping();
     hideOverlays();
@@ -931,7 +1044,7 @@
     renderScene();
 
     for (var i = before.shards; i < state.shards; i++) {
-      toast(((STORY.shardNames && STORY.shardNames[i]) || "時の欠片") + "を手に入れた");
+      toast(((STORY.shardNames && STORY.shardNames[i]) || SHARD_NAME) + "を手に入れた");
     }
     if (state.affection !== before.affection) {
       replayAnimation(els.heartMeter, state.affection > before.affection ? "is-up" : "is-down");
@@ -1017,7 +1130,8 @@
 
   function describeSave(s, savedAt) {
     var scene = STORY.scenes[s.scene];
-    var text = "第" + ((s.steps || 0) + 1) + "幕「" + scene.title + "」　欠片 " + s.shards + "/" + STORY.maxShards;
+    var text = stepLabelOf(s) + "「" + scene.title + "」";
+    if (showsShards()) text += "　" + SHARD_LABEL + " " + s.shards + "/" + STORY.maxShards;
     var date = savedAt ? formatDate(savedAt) : "";
     return date ? text + "　" + date : text;
   }
@@ -1320,10 +1434,10 @@
       rewindTo(lastChoiceIndex());
     },
     "hud-shards": function () {
-      if (state) toast("時の欠片　" + state.shards + " / " + STORY.maxShards);
+      if (state) toast(SHARD_NAME + "　" + state.shards + " / " + STORY.maxShards);
     },
     "hud-heart": function () {
-      if (state) toast("女神の心");
+      if (state) toast(HEART_NAME);
     },
     reset: resetData,
     settings: openSettings,
@@ -1385,6 +1499,14 @@
     endingList: "ending-list",
     endingCount: "ending-count",
     sceneRate: "scene-rate",
+    titleSub: "title-sub",
+    titleMain: "title-main",
+    titleLead: "title-lead",
+    settingsTitle: "settings-title",
+    hudShards: "hud-shards",
+    hudShardsLabel: "hud-shards-label",
+    hudHeart: "hud-heart",
+    hudHeartLabel: "hud-heart-label",
     shards: "status-shards",
     heartMeter: "heart-meter",
     heartFill: "heart-fill",
@@ -1454,6 +1576,7 @@
 
   function pageIsCurrent() {
     if (document.documentElement.getAttribute("data-app-version") !== VERSION) return false;
+    if (!WORK_ID) return false; // 作品設定（js/work.js）を読めていない：保存キーを決められないので始めない
     return Object.keys(ELEMENT_IDS).every(function (name) {
       return !!els[name];
     });
@@ -1464,7 +1587,7 @@
   }
 
   function handleStalePage() {
-    var RELOAD_KEY = "chrono-tale-reloaded";
+    var RELOAD_KEY = (WORK_ID || "novel") + "-reloaded";
     var canReload = /^https?:$/.test(window.location.protocol);
     var tried = true;
     try {
@@ -1498,6 +1621,36 @@
     document.body.appendChild(box);
   }
 
+  /** 複数行の文言を、行ごとに <br> で区切って入れる（文字列 1 つでも配列でもよい） */
+  function setLines(node, lines) {
+    node.textContent = "";
+    (Array.isArray(lines) ? lines : [lines]).forEach(function (line, i) {
+      if (i) node.appendChild(document.createElement("br"));
+      node.appendChild(document.createTextNode(String(line)));
+    });
+  }
+
+  /**
+   * 作品設定（WORK）の題名・用語を画面に入れる。設定に無い項目は index.html に書いてある文言のまま。
+   * 別作品では index.html を書き換えなくても、js/work.js だけで題名まわりが差し替わる。
+   */
+  function applyWorkTexts() {
+    if (typeof WORK.title === "string") {
+      document.title = typeof WORK.documentTitle === "string" ? WORK.documentTitle : WORK.title;
+      els.settingsTitle.textContent = WORK.title;
+    }
+    if (WORK.titleLines != null) setLines(els.titleMain, WORK.titleLines);
+    else if (typeof WORK.title === "string") setLines(els.titleMain, WORK.title);
+    if (WORK.subtitle != null) setLines(els.titleSub, WORK.subtitle);
+    if (WORK.lead != null) setLines(els.titleLead, WORK.lead);
+    els.hudShardsLabel.textContent = SHARD_LABEL;
+    els.hudShards.setAttribute("title", SHARD_NAME);
+    els.shards.setAttribute("aria-label", SHARD_NAME);
+    els.hudHeartLabel.textContent = HEART_LABEL;
+    els.hudHeart.setAttribute("title", HEART_NAME);
+    els.heartMeter.setAttribute("aria-label", HEART_NAME);
+  }
+
   function init() {
     els = {};
     Object.keys(ELEMENT_IDS).forEach(function (name) {
@@ -1512,6 +1665,7 @@
     settings = loadSettings();
     els.appVersion.textContent = "ver " + VERSION;
     els.settingsVersion.textContent = "ver " + VERSION;
+    applyWorkTexts();
 
     // ボタン（タイトル・HUD・メニュー・エンディング）
     document.addEventListener("click", onActionClick);
