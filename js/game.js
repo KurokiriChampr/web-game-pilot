@@ -1,7 +1,7 @@
 /*
  * ゲームエンジン
  * 状態管理（シーン・好感度・欠片・フラグ）、画面描画、文字送り、
- * セーブ／ロード、バックログ、設定を担当する。
+ * セーブ／ロード、バックログ（選択肢への巻き戻し）、既読（ページ単位）、オート、設定を担当する。
  * 画面はビジュアルノベル型（全面背景＋立ち絵＋下部メッセージウィンドウ）。
  * 本文は 1 段落ずつメッセージウィンドウに表示し、タップ / Enter で読み進める。
  * 画像・立ち絵・BGM は js/assets.js（GameAssets）に任せる。
@@ -11,7 +11,7 @@
   "use strict";
 
   // 版を上げるときは index.html の data-app-version と ?v= も同じ値にする
-  var VERSION = "3.0-p2";
+  var VERSION = "3.0-p3";
 
   var STORY = window.STORY;
   var Assets = window.GameAssets;
@@ -33,6 +33,14 @@
     { label: "はやい", cps: 80 },
     { label: "一瞬", cps: 0 }
   ];
+  // オート：文字送りが終わってから次のページへ進むまでの待ち時間（ミリ秒）＝ base + perChar × 文字数
+  var AUTO_SPEEDS = [
+    { label: "ゆっくり", base: 1800, perChar: 120 },
+    { label: "ふつう", base: 1200, perChar: 80 },
+    { label: "はやい", base: 700, perChar: 45 }
+  ];
+  var FONT_SIZES = ["標準", "大", "特大"]; // 見た目は css の body[data-font]
+  var WINDOW_LEVELS = ["うすい", "ふつう", "こい"]; // メッセージウィンドウの濃さ。css の body[data-window]
   var SCREEN_FX = ["shake", "flash"]; // 画面全体の演出（シーンの enter・段落の fx）
   var FX_COUNT = { petals: 14, "petals-fall": 18, motes: 16, embers: 14, dust: 20 };
 
@@ -42,7 +50,10 @@
   var typer = { raf: 0, active: false, finish: null };
   // メッセージウィンドウのページ送り（1 段落 = 1 ページ）
   // pages = 正規化済みのページ（{ text, speaker, ... }）、paras = その本文（文字列）だけ
-  var pager = { pages: [], paras: [], staged: false, index: 0, pageDone: false, ended: false, instant: false };
+  // read = シーンに入った時点で、各ページが既読だったか（スキップと「既読は一瞬で表示」の判定に使う）
+  var pager = { pages: [], paras: [], read: [], staged: false, index: 0, pageDone: false, ended: false };
+  var auto = { on: false, timer: 0 }; // オートモード（保存しない。画面を開いているあいだだけの状態）
+  var confirmRun = null; // 確認ダイアログで「はい」を押したときに実行する処理
   var OVERLAY_LOCK_MS = 450; // 連打で選択肢を誤って押さないための待ち時間
   var overlayTimer = 0;
 
@@ -76,6 +87,11 @@
     return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
 
+  function level(value, count, fallback) {
+    var n = parseInt(value, 10);
+    return n >= 0 && n < count ? n : fallback;
+  }
+
   function loadSettings() {
     var s = storageGet(KEYS.settings) || {};
     var speed = parseInt(s.textSpeed, 10);
@@ -85,7 +101,11 @@
       volume: typeof s.volume === "number" ? Math.max(0, Math.min(1, s.volume)) : 0.6,
       muted: !!s.muted,
       images: s.images !== false,
-      effects: s.effects !== false // 画面の揺れ・フラッシュなどの演出（ver 3.0 Phase 2〜。旧データに無ければオン）
+      effects: s.effects !== false, // 画面の揺れ・フラッシュなどの演出（ver 3.0 Phase 2〜。旧データに無ければオン）
+      // ここから ver 3.0-p3 で追加。旧データに無ければ従来どおりの見た目・ふつうの速度
+      fontSize: level(s.fontSize, FONT_SIZES.length, 0),
+      windowLevel: level(s.windowLevel, WINDOW_LEVELS.length, 1),
+      autoSpeed: level(s.autoSpeed, AUTO_SPEEDS.length, 1)
     };
   }
   function saveSettings() {
@@ -164,7 +184,89 @@
   }
   function readScenes() {
     return listOf(KEYS.read).filter(function (id) {
-      return !!STORY.scenes[id];
+      return typeof id === "string" && !!STORY.scenes[id];
+    });
+  }
+  function allEndings() {
+    return Object.keys(STORY.scenes)
+      .map(function (id) {
+        return STORY.scenes[id].ending;
+      })
+      .filter(Boolean);
+  }
+  /** 見たことのある結末（シナリオに実在する ID だけ） */
+  function seenEndingIds() {
+    var seen = seenEndings();
+    return allEndings()
+      .map(function (ending) {
+        return ending.id;
+      })
+      .filter(function (id) {
+        return seen.indexOf(id) !== -1;
+      });
+  }
+  /** 「この選択肢に戻る」の解放条件：いずれかの結末を 1 つ見ている */
+  function rewindUnlocked() {
+    return seenEndingIds().length >= 1;
+  }
+  /** タイトル演出が変わる条件：すべての結末を見ている */
+  function allEndingsSeen() {
+    var all = allEndings();
+    return all.length > 0 && seenEndingIds().length === all.length;
+  }
+
+  // ---------- 既読（ページ単位・選んだ選択肢） ----------
+  // 既存の chrono-tale-read-v1（シーン ID の配列）に、別形式の要素として追記する。
+  //   "meet"        … シーンを最後まで読んだ（従来どおり。「読んだシーン n / 20」はこれだけを数える）
+  //   "meet#1k2j3"  … そのシーンの、本文の指紋が 1k2j3 のページを読んだ
+  //   "meet>9zx8"   … そのシーンで、文面の指紋が 9zx8 の選択肢を選んだことがある
+  // シーン ID に # と > は使わないので衝突しない。旧版は STORY.scenes に無い要素を数えず、そのまま残す。
+  function pageKey(sceneId, text) {
+    return sceneId + "#" + Stage.hashText(text);
+  }
+  function choiceKey(sceneId, text) {
+    return sceneId + ">" + Stage.hashText(text);
+  }
+  function readSet() {
+    var set = {};
+    listOf(KEYS.read).forEach(function (k) {
+      if (typeof k === "string") set[k] = true;
+    });
+    return set;
+  }
+  function markRead(keys) {
+    var list = listOf(KEYS.read);
+    var added = false;
+    keys.forEach(function (k) {
+      if (list.indexOf(k) === -1) {
+        list.push(k);
+        added = true;
+      }
+    });
+    if (added) storageSet(KEYS.read, list);
+  }
+  /**
+   * いまのシーンの各ページが既読かどうか。
+   * 旧版の記録（シーン ID だけで、ページの記録が 1 つも無いシーン）は、どの段落を読んだか分からないので、
+   * 最初に入ったときの段落構成を「読んだもの」として引き継ぐ（従来のシーン単位スキップと同じ扱い）。
+   */
+  function readFlags(sceneId, paras) {
+    var set = readSet();
+    var prefix = sceneId + "#";
+    var hasPageMarks = Object.keys(set).some(function (k) {
+      return k.indexOf(prefix) === 0;
+    });
+    var keys = paras.map(function (text) {
+      return pageKey(sceneId, text);
+    });
+    if (set[sceneId] && !hasPageMarks) {
+      markRead(keys);
+      return keys.map(function () {
+        return true;
+      });
+    }
+    return keys.map(function (k) {
+      return !!set[k];
     });
   }
 
@@ -194,6 +296,42 @@
     });
     if (who.some(Boolean)) entry.who = who;
     pushLog(entry);
+  }
+
+  // ---------- 選択肢への巻き戻し ----------
+  // 選んだ時点の状態の控えを、バックログの選択肢の行（k: "c"）に s として持たせる。
+  // セーブデータの最上位の形は変えない（旧版は s を無視する。旧データの行には控えが無いので「戻る」を出さない）。
+  function snapshotOf(s) {
+    return {
+      scene: s.scene,
+      affection: s.affection,
+      shards: s.shards,
+      flags: JSON.parse(JSON.stringify(s.flags)),
+      steps: s.steps
+    };
+  }
+  function canRewindTo(index) {
+    var entry = state && state.log[index];
+    return !!entry && entry.k === "c" && isValidSave(entry.s);
+  }
+  function lastChoiceIndex() {
+    if (!state) return -1;
+    for (var i = state.log.length - 1; i >= 0; i--) {
+      if (canRewindTo(i)) return i;
+    }
+    return -1;
+  }
+  /** バックログ index 番の選択肢を選ぶ直前（そのシーンの最終ページ＋選択肢）へ戻す */
+  function rewindTo(index) {
+    if (!canRewindTo(index)) return;
+    var log = state.log.slice(0, index);
+    var next = restoreState(state.log[index].s);
+    next.log = JSON.parse(JSON.stringify(log));
+    closeAllDialogs();
+    state = next;
+    if (!state.log.length) logScene();
+    renderScene({ toEnd: true });
+    toast("選択肢まで戻りました");
   }
 
   // ---------- DOM ----------
@@ -241,6 +379,7 @@
 
   // ---------- ダイアログ ----------
   function openDialog(dialog) {
+    setAuto(false); // ダイアログを開いたらオートは止める
     if (dialog.open) return;
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
@@ -260,6 +399,33 @@
   }
   function anyDialogOpen() {
     return !!document.querySelector("dialog[open]");
+  }
+
+  /** 確認（ブラウザ標準の確認窓の代わり）。「はい」で onOk を実行する。やめる・Esc・枠外タップでは何もしない */
+  function askConfirm(message, okLabel, onOk) {
+    confirmRun = onOk;
+    els.confirmMessage.textContent = message;
+    els.confirmOk.textContent = okLabel || "はい";
+    openDialog(els.confirmDialog);
+    els.confirmCancel.focus(); // 既定は「やめる」（Enter の連打で消してしまわない）
+  }
+  function onConfirmOk() {
+    var run = confirmRun;
+    confirmRun = null;
+    closeDialog(els.confirmDialog);
+    if (run) run();
+  }
+
+  function icon(name) {
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var use = document.createElementNS(NS, "use");
+    use.setAttribute("href", "#i-" + name);
+    svg.appendChild(use);
+    return svg;
   }
 
   // ---------- 演出 ----------
@@ -345,6 +511,7 @@
   // 背景鑑賞モード（UI を隠して画像だけを見る）
   function setPeek(on) {
     on = !!on;
+    if (on) setAuto(false);
     document.body.classList.toggle("is-peek", on);
     els.peekExit.hidden = !on;
     if (on) els.peekExit.focus();
@@ -450,21 +617,27 @@
     showScreen("title");
     hideOverlays();
     setPeek(false);
+    setAuto(false);
     setTheme("title");
-    setFx("petals");
+    // すべての結末を見たあとは、止まっていた花びらが落ち、文字盤の針が動き出す。
+    // 「動きを減らす」設定では落ちる花びらが見えなくなるので、宙に留まる花びらのままにする
+    var flowing = allEndingsSeen();
+    document.body.classList.toggle("is-timeflow", flowing);
+    setFx(flowing && !prefersReducedMotion() ? "petals-fall" : "petals");
     els.sceneBanner.classList.remove("is-on");
     Assets.setScene("title");
 
     els.appVersion.textContent = "ver " + VERSION;
-    els.continueBtn.hidden = !isValidSave(storageGet(KEYS.auto));
+    var resume = storageGet(KEYS.auto);
+    var canResume = isValidSave(resume);
+    els.continueBtn.hidden = !canResume;
+    els.continueWhere.textContent = canResume
+      ? "第" + ((resume.steps || 0) + 1) + "幕「" + STORY.scenes[resume.scene].title + "」"
+      : "";
 
     var seen = seenEndings();
     els.endingList.textContent = "";
-    var all = Object.keys(STORY.scenes)
-      .map(function (id) {
-        return STORY.scenes[id].ending;
-      })
-      .filter(Boolean);
+    var all = allEndings();
     var got = 0;
     all.forEach(function (ending) {
       var has = seen.indexOf(ending.id) !== -1;
@@ -481,11 +654,12 @@
 
   // ---------- ステータス ----------
   function renderStatus() {
-    var gems = "";
+    els.shards.textContent = "";
     for (var i = 0; i < STORY.maxShards; i++) {
-      gems += i < state.shards ? "💎" : "◇";
+      var gem = icon("shard");
+      gem.setAttribute("class", i < state.shards ? "icon shard is-on" : "icon shard");
+      els.shards.appendChild(gem);
     }
-    els.shards.textContent = gems;
     els.shards.setAttribute("aria-label", "時の欠片 " + state.shards + " / " + STORY.maxShards);
 
     var ratio = Math.max(0, Math.min(1, state.affection / STORY.maxAffection));
@@ -497,6 +671,7 @@
   // ---------- シーン ----------
   function showChoices(scene) {
     els.choices.textContent = "";
+    var chosen = readSet();
     visibleChoices(scene, state).forEach(function (choice, i) {
       var btn = el("button", "choice");
       btn.type = "button";
@@ -504,6 +679,13 @@
       num.setAttribute("aria-hidden", "true");
       btn.appendChild(num);
       btn.appendChild(el("span", "choice-text", choice.text));
+      if (chosen[choiceKey(state.scene, choice.text)]) {
+        // 選んだことのある選択肢の印（未選択の側には何も付けない。条件で出現する選択肢にも「NEW」は付けない）
+        var mark = el("span", "choice-seen");
+        mark.appendChild(icon("check"));
+        mark.appendChild(el("span", "choice-seen-label", "選択済"));
+        btn.appendChild(mark);
+      }
       btn.addEventListener("click", function () {
         if (overlayReady(els.choiceOverlay)) choose(choice);
       });
@@ -522,6 +704,8 @@
     els.endingProgress.textContent =
       "見つけたエンディング：" + seen + " / " + STORY.endingCount +
       (seen < STORY.endingCount ? "　――ほかの結末もあるようだ。" : "　――すべての結末を見届けた！");
+    // 直前の選択へ戻る。この結末に到達した画面から使うものなので、解放条件は付けない（控えの無い旧データでは出さない）
+    els.endingRetry.hidden = lastChoiceIndex() === -1;
     els.choiceOverlay.hidden = true;
     openOverlay(els.endingOverlay);
   }
@@ -532,11 +716,14 @@
     pager.ended = true;
     var scene = currentScene();
     if (!scene) return;
-    els.skipBtn.hidden = true;
     els.nextMark.hidden = true;
     addTo(KEYS.read, state.scene);
-    if (scene.ending) showEnding(scene);
-    else showChoices(scene);
+    clearAutoTimer(); // 選択肢は自動では選ばない（オートの状態は保ち、選んだあと次のシーンで再開する）
+    if (scene.ending) {
+      setAuto(false);
+      showEnding(scene);
+    } else showChoices(scene);
+    renderQuickbar();
   }
 
   /**
@@ -585,10 +772,18 @@
     // 段落の fx（そのページだけ）。背景 bg の切替は applyStage → Assets 側でクロスフェードする
     if (stage) stage.fx.forEach(playScreenFx);
 
-    typeScene(total ? [pager.paras[pager.index]] : [], instant || pager.instant, function () {
+    clearAutoTimer();
+    renderQuickbar();
+    var text = total ? pager.paras[pager.index] : null;
+    var quick = instant || SPEEDS[settings.textSpeed].cps === 0 || (settings.skipRead && !!pager.read[pager.index]);
+    typeScene(total ? [text] : [], quick, function () {
       pager.pageDone = true;
+      if (text != null && state) markRead([pageKey(state.scene, text)]); // 最後まで表示したページを既読にする
       if (last) endOfScene();
-      else els.nextMark.hidden = false;
+      else {
+        els.nextMark.hidden = false;
+        scheduleAuto();
+      }
     });
   }
 
@@ -605,15 +800,66 @@
     }
   }
 
-  /** 既読シーンのスキップ：最後のページまで飛ばして選択肢を出す */
+  /** いまのページからスキップできるか（シーンに入った時点で既読だったページの上にいるとき） */
+  function canSkip() {
+    return inGame() && !!currentScene() && !pager.ended && !!pager.read[pager.index];
+  }
+
+  /**
+   * 既読スキップ：既読のページが続くかぎり先へ飛ぶ。未読のページの手前（最後の既読ページ）で止まる。
+   * シーンの全ページが既読なら最終ページまで飛び、選択肢が出る。
+   */
   function skipScene() {
-    if (!inGame() || !currentScene() || pager.ended) return;
+    if (!canSkip()) return;
     stopTyping();
-    pager.index = Math.max(0, pager.paras.length - 1);
+    var j = pager.index;
+    while (j + 1 < pager.paras.length && pager.read[j + 1]) j += 1;
+    pager.index = j;
     showPage(true);
   }
 
-  function renderScene() {
+  // ---------- オート ----------
+  function clearAutoTimer() {
+    if (auto.timer) window.clearTimeout(auto.timer);
+    auto.timer = 0;
+  }
+  /** いまのページを表示し終えていれば、文字数に応じた時間のあとで次のページへ進む */
+  function scheduleAuto() {
+    clearAutoTimer();
+    if (!auto.on || !inGame() || !pager.pageDone || pager.ended) return;
+    if (pager.index >= pager.paras.length - 1) return;
+    var speed = AUTO_SPEEDS[settings.autoSpeed] || AUTO_SPEEDS[1];
+    var chars = Array.from(pager.paras[pager.index] || "").length;
+    auto.timer = window.setTimeout(function () {
+      auto.timer = 0;
+      if (!auto.on || !inGame() || anyDialogOpen() || document.hidden) return;
+      advance();
+    }, speed.base + speed.perChar * chars);
+  }
+  function setAuto(on) {
+    var scene = currentScene();
+    on = !!on && inGame() && !!scene && !(pager.ended && scene.ending);
+    if (auto.on === on) return;
+    auto.on = on;
+    clearAutoTimer();
+    renderQuickbar();
+    if (on) scheduleAuto();
+  }
+
+  /** 下部クイックバーの状態（押せる・押せない、オートのオン表示） */
+  function renderQuickbar() {
+    if (!els.autoBtn) return;
+    var scene = currentScene();
+    var endingShown = !!scene && !!scene.ending && pager.ended;
+    els.skipBtn.disabled = !canSkip();
+    els.saveBtn.disabled = !isPlaying();
+    els.autoBtn.disabled = !scene || endingShown;
+    els.autoBtn.setAttribute("aria-pressed", String(auto.on));
+  }
+
+  /** opts.toEnd＝最終ページから始める（選択肢への巻き戻し用。すぐ選択肢が出る） */
+  function renderScene(opts) {
+    opts = opts || {};
     var scene = currentScene();
     if (!scene) {
       // 想定外のIDに来た場合はタイトルへ戻す
@@ -624,7 +870,6 @@
     }
     var id = state.scene;
     var stepLabel = scene.ending ? "FIN" : "第" + (state.steps + 1) + "幕";
-    var wasRead = readScenes().indexOf(id) !== -1;
 
     stopTyping();
     hideOverlays();
@@ -637,7 +882,8 @@
     pager.pages = scenePages(scene, state);
     pager.paras = Stage.pageTexts(pager.pages);
     pager.staged = Stage.usesStage(scene, resolve(scene.text, state));
-    pager.index = 0;
+    pager.read = readFlags(id, pager.paras);
+    pager.index = opts.toEnd ? Math.max(0, pager.paras.length - 1) : 0;
     pager.ended = false;
     pager.stepLabel = stepLabel;
     applyStage(true); // 背景・立ち絵・BGM をシーン先頭の状態に合わせる
@@ -652,7 +898,6 @@
     els.stageIcon.textContent = scene.icon || "✨";
     els.sceneTitle.textContent = scene.title;
     els.menuSave.disabled = !!scene.ending;
-    els.skipBtn.hidden = !wasRead;
 
     if (scene.ending) {
       addTo(KEYS.endings, scene.ending.id);
@@ -661,8 +906,7 @@
       storageSet(KEYS.auto, state);
     }
 
-    pager.instant = SPEEDS[settings.textSpeed].cps === 0 || (settings.skipRead && wasRead);
-    showPage();
+    showPage(!!opts.toEnd);
 
     els.sceneTitle.focus({ preventScroll: true });
   }
@@ -677,7 +921,8 @@
       return;
     }
 
-    pushLog({ k: "c", text: choice.text });
+    pushLog({ k: "c", text: choice.text, s: snapshotOf(state) }); // s＝選ぶ直前の状態の控え（巻き戻し用）
+    markRead([choiceKey(state.scene, choice.text)]);
     applyEffects(state, choice.effects);
     state.scene = next;
     state.steps += 1;
@@ -686,7 +931,7 @@
     renderScene();
 
     for (var i = before.shards; i < state.shards; i++) {
-      toast("💎 " + ((STORY.shardNames && STORY.shardNames[i]) || "時の欠片") + "を手に入れた");
+      toast(((STORY.shardNames && STORY.shardNames[i]) || "時の欠片") + "を手に入れた");
     }
     if (state.affection !== before.affection) {
       replayAnimation(els.heartMeter, state.affection > before.affection ? "is-up" : "is-down");
@@ -720,17 +965,20 @@
   }
 
   function restart() {
-    if (isPlaying() && !window.confirm("最初からやり直しますか？\n現在の進行状況は失われます（セーブスロットは残ります）。")) {
-      return;
+    function go() {
+      storageRemove(KEYS.auto);
+      startNew();
     }
-    storageRemove(KEYS.auto);
-    startNew();
+    if (isPlaying()) {
+      askConfirm("最初からやり直しますか？\n現在の進行状況は失われます（セーブスロットは残ります）。", "やり直す", go);
+    } else go();
   }
 
   function backToTitle() {
     try {
       closeAllDialogs();
       stopTyping();
+      setAuto(false);
       state = null; // オートセーブは残るので「つづきから」で再開できる
       renderTitle();
     } catch (e) {
@@ -769,34 +1017,42 @@
 
   function describeSave(s, savedAt) {
     var scene = STORY.scenes[s.scene];
-    var text = "第" + ((s.steps || 0) + 1) + "幕「" + scene.title + "」　💎" + s.shards + "/" + STORY.maxShards;
+    var text = "第" + ((s.steps || 0) + 1) + "幕「" + scene.title + "」　欠片 " + s.shards + "/" + STORY.maxShards;
     var date = savedAt ? formatDate(savedAt) : "";
     return date ? text + "　" + date : text;
   }
 
   function saveToSlot(n) {
     if (!isPlaying()) return;
-    var slots = getSlots();
-    if (slots[n] && !window.confirm("スロット " + n + " に上書きしますか？")) return;
-    slots[n] = { savedAt: Date.now(), state: restoreState(state) };
-    if (storageSet(KEYS.slots, slots)) toast("💾 スロット " + n + " にセーブしました");
-    else toast("⚠ このブラウザではセーブできませんでした");
-    renderSaves();
+    function go() {
+      if (!isPlaying()) return;
+      var slots = getSlots();
+      slots[n] = { savedAt: Date.now(), state: restoreState(state) };
+      if (storageSet(KEYS.slots, slots)) toast("スロット " + n + " にセーブしました");
+      else toast("このブラウザではセーブできませんでした");
+      renderSaves();
+    }
+    if (getSlots()[n]) askConfirm("スロット " + n + " に上書きしますか？", "上書きする", go);
+    else go();
   }
 
   function loadFrom(saved) {
     if (!isValidSave(saved)) return;
-    if (isPlaying() && !window.confirm("ロードしますか？\n現在の進行状況は失われます。")) return;
-    loadState(saved);
-    toast("📂 ロードしました");
+    function go() {
+      loadState(saved);
+      toast("ロードしました");
+    }
+    if (isPlaying()) askConfirm("ロードしますか？\n現在の進行状況は失われます。", "ロードする", go);
+    else go();
   }
 
   function deleteSlot(n) {
-    if (!window.confirm("スロット " + n + " のデータを削除しますか？")) return;
-    var slots = getSlots();
-    delete slots[n];
-    storageSet(KEYS.slots, slots);
-    renderSaves();
+    askConfirm("スロット " + n + " のデータを削除しますか？", "削除する", function () {
+      var slots = getSlots();
+      delete slots[n];
+      storageSet(KEYS.slots, slots);
+      renderSaves();
+    });
   }
 
   function saveRow(name, desc, actions) {
@@ -807,8 +1063,9 @@
     li.appendChild(info);
     var box = el("div", "save-actions");
     actions.forEach(function (a) {
-      var btn = el("button", "btn btn-small" + (a.primary ? " btn-primary" : ""), a.label);
+      var btn = el("button", "btn btn-small" + (a.primary ? " btn-primary" : ""), a.icon ? null : a.label);
       btn.type = "button";
+      if (a.icon) btn.appendChild(icon(a.icon));
       if (a.ariaLabel) btn.setAttribute("aria-label", a.ariaLabel);
       btn.disabled = !!a.disabled;
       btn.addEventListener("click", a.run);
@@ -866,7 +1123,7 @@
         }
         if (ok) {
           actions.push({
-            label: "🗑",
+            icon: "trash",
             ariaLabel: "スロット " + n + " を削除",
             run: function () {
               deleteSlot(n);
@@ -892,12 +1149,32 @@
   function openLog() {
     if (!state || !inGame()) return;
     els.logList.textContent = "";
-    state.log.forEach(function (entry) {
+    var unlocked = rewindUnlocked();
+    var lastIndex = state.log.length - 1;
+    state.log.forEach(function (entry, index) {
       if (entry.k === "c") {
-        els.logList.appendChild(el("p", "log-choice", "▶ " + entry.text));
+        var row = el("div", "log-choice");
+        row.appendChild(el("p", "log-choice-text", "▶ " + entry.text));
+        // 「この選択肢に戻る」：いずれかの結末を見たあとで解放。控えの無い行（旧データ）には出さない
+        if (unlocked && canRewindTo(index)) {
+          var jump = el("button", "btn btn-small log-jump");
+          jump.type = "button";
+          jump.appendChild(icon("back"));
+          jump.appendChild(el("span", null, "この選択肢に戻る"));
+          jump.addEventListener("click", function () {
+            askConfirm("この選択肢まで戻りますか？\nここから先の進行は、選び直したところからやり直しになります。", "戻る", function () {
+              rewindTo(index);
+            });
+          });
+          row.appendChild(jump);
+        }
+        els.logList.appendChild(row);
       } else {
         els.logList.appendChild(el("h3", "log-scene", entry.title));
-        (entry.paras || []).forEach(function (para, i) {
+        var paras = entry.paras || [];
+        // いま読んでいるシーン（ログの末尾）は、読んだページまでだけを出す。保存形式は変えず、表示だけで絞る
+        if (index === lastIndex) paras = paras.slice(0, pager.index + 1);
+        paras.forEach(function (para, i) {
           // paras は文字列の配列。万一オブジェクトが混ざっていても本文だけを出す
           var p = el("p", "log-para", typeof para === "string" ? para : Stage.normalizePage(para).text);
           var who = Array.isArray(entry.who) && typeof entry.who[i] === "string" ? entry.who[i] : "";
@@ -917,7 +1194,7 @@
 
   // ---------- 設定表示 ----------
   function renderMute() {
-    els.muteBtn.textContent = settings.muted ? "🔇" : "🔊";
+    els.muteIcon.setAttribute("href", settings.muted ? "#i-mute" : "#i-sound");
     els.muteBtn.setAttribute("aria-pressed", String(settings.muted));
     els.setMute.checked = settings.muted;
   }
@@ -930,8 +1207,27 @@
     els.setVolumeLabel.textContent = String(Math.round(settings.volume * 100));
     els.setImages.checked = settings.images;
     els.setEffects.checked = settings.effects !== false;
+    els.setAuto.value = String(settings.autoSpeed);
+    els.setAutoLabel.textContent = AUTO_SPEEDS[settings.autoSpeed].label;
+    els.setFont.value = String(settings.fontSize);
+    els.setFontLabel.textContent = FONT_SIZES[settings.fontSize];
+    els.setWindow.value = String(settings.windowLevel);
+    els.setWindowLabel.textContent = WINDOW_LEVELS[settings.windowLevel];
+    renderReadability();
     renderEffectsSetting();
     renderMute();
+  }
+
+  /** 文字の大きさ・ウィンドウの濃さを body に写す（css が本文・選択肢・バックログ・設定の見本に反映する） */
+  function renderReadability() {
+    document.body.setAttribute("data-font", String(settings.fontSize));
+    document.body.setAttribute("data-window", String(settings.windowLevel));
+  }
+
+  /** 設定の見本の背景に、いま出ている背景画像を写す（無ければ css のテーマ色のまま） */
+  function renderPreviewBackdrop() {
+    var layer = document.querySelector("#bg-layer .bg-img.is-active");
+    els.settingsPreview.style.backgroundImage = layer && layer.style.backgroundImage ? layer.style.backgroundImage : "";
   }
 
   function setMuted(flag) {
@@ -943,17 +1239,19 @@
 
   function openSettings() {
     renderSettings();
+    renderPreviewBackdrop();
     closeDialog(els.menuDialog);
     openDialog(els.settingsDialog);
   }
 
   function resetData() {
-    if (!window.confirm("セーブデータ・見つけたエンディング・既読の記録をすべて消去します。\nよろしいですか？")) return;
-    [KEYS.auto, KEYS.slots, KEYS.endings, KEYS.read].forEach(storageRemove);
-    state = null;
-    closeAllDialogs();
-    renderTitle();
-    toast("🗑 記録を消去しました");
+    askConfirm("セーブデータ・見つけたエンディング・既読の記録をすべて消去します。\nよろしいですか？", "消去する", function () {
+      [KEYS.auto, KEYS.slots, KEYS.endings, KEYS.read].forEach(storageRemove);
+      state = null;
+      closeAllDialogs();
+      renderTitle();
+      toast("記録を消去しました");
+    });
   }
 
   // 画像・BGM の状態が変わったときに UI を合わせる
@@ -1003,6 +1301,7 @@
     if (key === "l") openLog();
     else if (key === "s") openSaves("save");
     else if (key === "m") setMuted(!settings.muted);
+    else if (key === "a") setAuto(!auto.on);
   }
 
   // ---------- ボタン操作（data-action をまとめて受ける） ----------
@@ -1014,6 +1313,18 @@
     restart: restart,
     title: backToTitle,
     skip: skipScene,
+    auto: function () {
+      setAuto(!auto.on);
+    },
+    retry: function () {
+      rewindTo(lastChoiceIndex());
+    },
+    "hud-shards": function () {
+      if (state) toast("時の欠片　" + state.shards + " / " + STORY.maxShards);
+    },
+    "hud-heart": function () {
+      if (state) toast("女神の心");
+    },
     reset: resetData,
     settings: openSettings,
     log: openLog,
@@ -1048,6 +1359,9 @@
     if (!action) return;
     try {
       action();
+      // クイックバー・HUD をマウスやタップで押したあとは、フォーカスをメッセージウィンドウへ戻す
+      // （続けて Enter を押すと、ボタンの押し直しではなく読み進めになる）。キーボードで押したときは動かさない
+      if (e.detail > 0 && target.closest(".quickbar, .hud")) focusTextbox();
     } catch (err) {
       console.error("操作に失敗しました:", name, err);
       if (name === "title") forceTitle();
@@ -1075,6 +1389,26 @@
     heartMeter: "heart-meter",
     heartFill: "heart-fill",
     muteBtn: "mute-btn",
+    muteIcon: "mute-icon",
+    quickbar: "quickbar",
+    logBtn: "log-btn",
+    autoBtn: "auto-btn",
+    saveBtn: "save-btn",
+    menuBtn: "menu-btn",
+    continueWhere: "continue-where",
+    endingRetry: "ending-retry",
+    confirmDialog: "confirm-dialog",
+    confirmMessage: "confirm-message",
+    confirmOk: "confirm-ok",
+    confirmCancel: "confirm-cancel",
+    setAuto: "set-auto",
+    setAutoLabel: "set-auto-label",
+    setFont: "set-font",
+    setFontLabel: "set-font-label",
+    setWindow: "set-window",
+    setWindowLabel: "set-window-label",
+    settingsPreview: "settings-preview",
+    previewText: "preview-text",
     stage: "stage",
     stageIcon: "stage-icon",
     sceneBanner: "scene-banner",
@@ -1184,7 +1518,7 @@
 
     // ステージやメッセージウィンドウをタップすると読み進める
     els.gameScreen.addEventListener("click", function (e) {
-      if (e.target.closest && e.target.closest("button, a, input, .hud, .overlay")) return;
+      if (e.target.closest && e.target.closest("button, a, input, .hud, .overlay, .quickbar")) return;
       advance();
     });
 
@@ -1198,7 +1532,31 @@
       dialog.addEventListener("close", focusTextbox); // Esc で閉じた場合
     });
 
+    els.confirmOk.addEventListener("click", onConfirmOk);
+
+    // タブが隠れたらオートは止める（戻ってきたときに勝手に進んでいないように）
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) setAuto(false);
+    });
+
     // 設定
+    els.setAuto.addEventListener("input", function () {
+      settings.autoSpeed = level(els.setAuto.value, AUTO_SPEEDS.length, 1);
+      els.setAutoLabel.textContent = AUTO_SPEEDS[settings.autoSpeed].label;
+      saveSettings();
+    });
+    els.setFont.addEventListener("input", function () {
+      settings.fontSize = level(els.setFont.value, FONT_SIZES.length, 0);
+      els.setFontLabel.textContent = FONT_SIZES[settings.fontSize];
+      renderReadability();
+      saveSettings();
+    });
+    els.setWindow.addEventListener("input", function () {
+      settings.windowLevel = level(els.setWindow.value, WINDOW_LEVELS.length, 1);
+      els.setWindowLabel.textContent = WINDOW_LEVELS[settings.windowLevel];
+      renderReadability();
+      saveSettings();
+    });
     els.setSpeed.addEventListener("input", function () {
       settings.textSpeed = Math.max(0, Math.min(SPEEDS.length - 1, parseInt(els.setSpeed.value, 10) || 0));
       els.setSpeedLabel.textContent = SPEEDS[settings.textSpeed].label;

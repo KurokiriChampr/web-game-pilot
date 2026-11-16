@@ -285,4 +285,32 @@ eq([STORY.scenes.boss.enter, STORY.scenes.sacrifice.enter, STORY.scenes.end_true
 });
 eq(MANIFEST.characters.rine.poses.sit.exprs.eyes_closed, "sit_eyes_closed.webp");
 
+// ---- 既読の指紋（ver 3.0-p3）：ページ単位の既読・選んだ選択肢の記録に使う ----
+eq(Stage.hashText(""), (0x811c9dc5).toString(36), "空文字列は FNV-1a 32bit の初期値（2166136261）");
+eq(Stage.hashText("a"), (0xe40c292c).toString(36), "既知の値（FNV-1a 32bit の \"a\"）");
+eq(Stage.hashText("あ"), Stage.hashText("あ"), "同じ文字列は同じ値");
+ok(/^[0-9a-z]{1,7}$/.test(Stage.hashText("時の欠片")), "36 進の短い文字列");
+var BASE = require(path.join(__dirname, "baseline", "v2.1-text.json"));
+var hashedParas = 0;
+Object.keys(BASE.texts).forEach(function (id) {
+  // 同じシーンの中で、違う段落が同じ指紋にならない（なると未読を既読と取り違える）
+  var byHash = {};
+  BASE.texts[id].lists.forEach(function (list) {
+    list.forEach(function (p) {
+      var h = Stage.hashText(p);
+      ok(byHash[h] == null || byHash[h] === p, id + "：段落の指紋が衝突しない");
+      if (byHash[h] == null) hashedParas += 1;
+      byHash[h] = p;
+    });
+  });
+  var byChoice = {};
+  (STORY.scenes[id].choices || []).forEach(function (c) {
+    var h = Stage.hashText(c.text);
+    ok(byChoice[h] == null, id + "：選択肢の指紋が衝突しない");
+    byChoice[h] = c.text;
+  });
+  ok(!/[#>]/.test(id), "シーン ID に # と > を使わない（既読データの区切りと衝突しない）");
+});
+eq(hashedParas >= 98, true, "全シーンの固有の段落を確認した");
+
 console.log("OK: " + checks + " 件の検査に合格（全 " + V3.length + " シーン × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");

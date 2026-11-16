@@ -200,8 +200,23 @@
     return out;
   }
 
+  /**
+   * 本文の短い指紋（FNV-1a 32bit を 36 進で）。既読の記録に「シーン ID＋本文の指紋」として使う。
+   * 本文そのものは保存しない。同じ文字列なら必ず同じ値になる（周回・端末をまたいで不変）。
+   */
+  function hashText(text) {
+    var str = typeof text === "string" ? text : String(text == null ? "" : text);
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(36);
+  }
+
   var api = {
     POSITIONS: POSITIONS,
+    hashText: hashText,
     HALO_STATES: HALO_STATES,
     normalizePage: normalizePage,
     normalizePages: normalizePages,
