@@ -2,13 +2,18 @@
 /*
  * プレビュー用の簡易サーバ（依存なし）
  * ------------------------------------------------------------
- *   node tools/preview-server.js [--port 8080] [--placeholders]
+ *   node tools/preview-server.js [--port 8080] [--placeholders] [--work <作品の差し替え分のフォルダ>]
  *
  * --placeholders を付けると、assets/images/chara/ と assets/images/bg/ の下で
  * 「まだ存在しないファイル」への要求に、その場で作った仮の絵（SVG）を返す。
  * 実素材が届く前に、立ち絵の位置・表情切替・光輪の追随を画面で確かめるためのもの。
  * リポジトリにダミーファイルは置かない（仮の絵はメモリ上で作るだけ）。
  * 付けない場合は実ファイルだけを返すので、「素材が無いときのフォールバック」を確かめられる。
+ *
+ * createServer({ roots: [フォルダ, ...] }) は、先頭から順に探して最初に見つかったファイルを返す（重ね合わせ）。
+ * 「作品の差し替え分だけを持つフォルダ」をエンジン（このリポジトリ）に重ねて、別作品として動かすためのもの。
+ *   例: createServer({ roots: ["tools/fixtures/trio", "."] })  … work.js・story.js・manifest.json だけ差し替える
+ * createServer({ files: { "js/story.js": "…" } }) は、メモリ上の内容をそのパスのファイルとして返す（生成した検証データ用）。
  *
  * createServer({ hide: /正規表現/ }) を渡すと、パスが一致するファイルを「存在しない」ものとして 404 を返す
  * （実素材が入ったあとでも、素材が無い状態のフォールバックを検査するためのもの。tools/e2e.js が使う）。
@@ -41,7 +46,28 @@ var EXPR_FACE = {
   down: { brow: 3, mouth: "M-12 32 Q0 28 12 32", eye: 2 }
 };
 
-function charaSvg(name) {
+/** 検証用の人物（フォルダ名が fx- で始まる）は、見分けがつくよう人物ごとに服と髪の色を変える */
+var FIXTURE_TINTS = [
+  { robe: "#dbe9ff", hair: "#7fa8e8", line: "#4a6fb0" },
+  { robe: "#ffe1e1", hair: "#e58a8a", line: "#b05a5a" },
+  { robe: "#e2f6df", hair: "#86c98a", line: "#4f8f58" },
+  { robe: "#efe2ff", hair: "#b18ae0", line: "#7a55ad" }
+];
+function tintFor(dir) {
+  if (!/^fx-/.test(dir || "")) return null;
+  var h = 0;
+  for (var i = 0; i < dir.length; i++) h = (h * 31 + dir.charCodeAt(i)) >>> 0;
+  return FIXTURE_TINTS[h % FIXTURE_TINTS.length];
+}
+
+function charaSvg(name, dir) {
+  var svg = charaSvgBase(name, dir);
+  var tint = tintFor(dir);
+  if (!tint) return svg;
+  return svg.replace(/#f4f1ea/g, tint.robe).replace(/#e9e4d8/g, tint.robe).replace(/#f1dea0/g, tint.hair).replace(/#c9a85a/g, tint.line);
+}
+
+function charaSvgBase(name, dir) {
   var m = /^(\w+?)_(\w+)$/.exec(name) || [null, "stand", name];
   var pose = m[1];
   var expr = m[2];
@@ -67,7 +93,7 @@ function charaSvg(name) {
     '<path d="' + f.mouth + '" fill="none" stroke="#a0504a" stroke-width="5" stroke-linecap="round"/>' +
     "</g>" +
     '<rect x="150" y="1440" width="500" height="90" rx="14" fill="#1a1238" opacity="0.85"/>' +
-    '<text x="400" y="1500" font-family="monospace" font-size="44" fill="#ffd27a" text-anchor="middle">仮 ' + pose + " / " + expr + "</text>" +
+    '<text x="400" y="1500" font-family="monospace" font-size="44" fill="#ffd27a" text-anchor="middle">仮 ' + (/^fx-/.test(dir || "") ? dir.slice(3) + " " : "") + pose + " / " + expr + "</text>" +
     "</svg>"
   );
 }
@@ -87,8 +113,8 @@ function bgSvg(name) {
 }
 
 function placeholderFor(rel) {
-  var m = /^assets\/images\/chara\/[\w-]+\/([\w-]+)\.\w+$/.exec(rel);
-  if (m) return charaSvg(m[1]);
+  var m = /^assets\/images\/chara\/([\w-]+)\/([\w-]+)\.\w+$/.exec(rel);
+  if (m) return charaSvg(m[2], m[1]);
   m = /^assets\/images\/bg\/([\w-]+)\.\w+$/.exec(rel);
   if (m) return bgSvg(m[1]);
   return null;
@@ -96,7 +122,28 @@ function placeholderFor(rel) {
 
 function createServer(options) {
   options = options || {};
-  var ROOT = options.root ? path.resolve(options.root) : DEFAULT_ROOT;
+  var ROOTS = (Array.isArray(options.roots) && options.roots.length ? options.roots : [options.root || DEFAULT_ROOT]).map(function (r) {
+    return path.resolve(r);
+  });
+  var FILES = options.files && typeof options.files === "object" ? options.files : {};
+  /** 重ね合わせた順に探し、最初に読めたものを返す */
+  function readOverlay(rel, cb) {
+    (function tryRoot(i) {
+      if (i >= ROOTS.length) {
+        cb(new Error("not found"));
+        return;
+      }
+      var file = path.resolve(ROOTS[i], rel);
+      if (file !== ROOTS[i] && file.indexOf(ROOTS[i] + path.sep) !== 0) {
+        cb(new Error("forbidden"));
+        return;
+      }
+      fs.readFile(file, function (err, data) {
+        if (err) tryRoot(i + 1);
+        else cb(null, data);
+      });
+    })(0);
+  }
   return http.createServer(function (req, res) {
     var rel;
     try {
@@ -106,20 +153,24 @@ function createServer(options) {
       res.end();
       return;
     }
-    var file = path.resolve(ROOT, rel);
-    if (file !== ROOT && file.indexOf(ROOT + path.sep) !== 0) {
+    if (/(^|\/)\.\.(\/|$)/.test(rel)) {
       res.writeHead(403);
       res.end();
       return;
     }
     var hidden = options.hide instanceof RegExp && options.hide.test(rel);
+    var virtual = Object.prototype.hasOwnProperty.call(FILES, rel) ? FILES[rel] : null;
     (hidden
       ? function (f, cb) {
           cb(new Error("hidden"));
         }
-      : fs.readFile)(file, function (err, data) {
+      : virtual != null
+      ? function (f, cb) {
+          cb(null, virtual);
+        }
+      : readOverlay)(rel, function (err, data) {
       if (!err) {
-        res.writeHead(200, { "Content-Type": TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store" });
+        res.writeHead(200, { "Content-Type": TYPES[path.extname(rel).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store" });
         res.end(data);
         return;
       }
@@ -142,7 +193,10 @@ if (require.main === module) {
   var pi = args.indexOf("--port");
   var port = pi !== -1 ? parseInt(args[pi + 1], 10) || 8080 : 8080;
   var placeholders = args.indexOf("--placeholders") !== -1;
-  createServer({ placeholders: placeholders }).listen(port, function () {
+  // --work <フォルダ>：作品の差し替え分を重ねる（例: --work tools/fixtures/trio --placeholders）
+  var wi = args.indexOf("--work");
+  var roots = wi !== -1 && args[wi + 1] ? [path.resolve(args[wi + 1]), DEFAULT_ROOT] : [DEFAULT_ROOT];
+  createServer({ placeholders: placeholders, roots: roots }).listen(port, function () {
     console.log("http://localhost:" + port + "/  （仮の立ち絵・背景: " + (placeholders ? "あり" : "なし") + "）");
   });
 }

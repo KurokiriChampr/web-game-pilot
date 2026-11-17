@@ -37,18 +37,7 @@
   --font-ui: system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
 }
 
-/* ---------- テーマ（シーンごとの背景） ---------- */
-body.theme-title        { --bg-1: #0b0c2a; --bg-2: #241a55; --bg-3: #5a3478; }
-body.theme-dawn         { --bg-1: #2b2350; --bg-2: #7a4a7e; --bg-3: #e09a8a; }
-body.theme-tower        { --bg-1: #0d1838; --bg-2: #1f3a6e; --bg-3: #3f6f9e; }
-body.theme-forest       { --bg-1: #08201a; --bg-2: #154234; --bg-3: #3d6b4a; }
-body.theme-night        { --bg-1: #05061a; --bg-2: #131740; --bg-3: #2b2a63; }
-body.theme-day          { --bg-1: #1d3b63; --bg-2: #3a77a6; --bg-3: #8cc3d9; }
-body.theme-ruins        { --bg-1: #2a1d12; --bg-2: #6b4a2a; --bg-3: #c39a5e; }
-body.theme-ending-true  { --bg-1: #3a2350; --bg-2: #c46a6a; --bg-3: #ffd27a; --accent: #fff1b8; }
-body.theme-ending-normal{ --bg-1: #060820; --bg-2: #1c2160; --bg-3: #5a5aa8; }
-body.theme-ending-bad   { --bg-1: #050505; --bg-2: #1a1a22; --bg-3: #34303f; --accent: #b9b4c9; }
-body.theme-ending-still { --bg-1: #0a0a24; --bg-2: #2a2450; --bg-3: #6a5a8c; --accent: #d9ccff; }
+/* シーンごとのテーマ色（body.theme-xxx）は作品ごとに変わるので css/work.css に置く */
 
 /* ---------- 読みやすさの設定（js/game.js が body に data-font / data-window を付ける） ---------- */
 body[data-font="1"] { --story-scale: 1.15; }
@@ -110,9 +99,6 @@ body::before {
     radial-gradient(1.5px 1.5px at 93% 82%, #fff8d0 50%, transparent 51%),
     radial-gradient(1px 1px at 36% 48%, #fff 50%, transparent 51%);
 }
-body.theme-day .sky,
-body.theme-ruins .sky,
-body.theme-ending-true .sky { opacity: 0.2; }
 body.theme-title .sky { animation: twinkle 7s ease-in-out infinite; }
 body.has-bg .sky { opacity: 0; }
 
@@ -1116,13 +1102,15 @@ body.has-bg .bg-shade { opacity: 1; }
 .chara {
   --chara-h: min(92dvh, 150vw);
   position: absolute;
-  bottom: 0;
+  bottom: var(--chara-lift, 0px);
   left: 50%;
-  height: var(--chara-h);
+  /* --chara-fit＝並ぶ人数と画面に合わせた縮小、--chara-scale＝人物ごとの背丈の比（manifest の characters[id].scale） */
+  height: calc(var(--chara-h) * var(--chara-fit, 1) * var(--chara-scale, 1));
   translate: -50% 0;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.6s ease, transform 0.6s ease, left 0.5s ease, height 0.5s ease, filter 0.3s ease;
+  transform-origin: 50% 100%;
+  transition: opacity 0.6s ease, transform 0.6s ease, left 0.5s ease, height 0.5s ease, filter 0.3s ease, scale 0.3s ease;
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
 }
 .chara.is-active {
@@ -1156,10 +1144,31 @@ body:has(.game-screen.is-choosing) .chara.is-active { filter: brightness(0.6) dr
 /* スマートフォン縦：1 人なら常に中央。2 人以上は縮めて内側へ寄せる（画面外へはみ出さない） */
 @media (orientation: portrait) and (max-width: 560px) {
   .char-layer[data-count="1"] .chara { left: 50%; }
-  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara { height: calc(var(--chara-h) * 0.75); }
-  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara[data-pos="left"]  { left: 32%; }
-  .char-layer:not([data-count="0"]):not([data-count="1"]) .chara[data-pos="right"] { left: 68%; }
+  .char-layer[data-count="2"] .chara { --chara-fit: 0.75; }
+  .char-layer[data-count="2"] .chara[data-pos="left"]  { left: 32%; }
+  .char-layer[data-count="2"] .chara[data-pos="right"] { left: 68%; }
+  /* 3 人：左右の人を画面の端へ寄せて重なりを減らす（端の人は体の外側が少し切れる）。
+     縮めたぶん顔がメッセージウィンドウの裏へ沈むので、少し持ち上げる（--chara-lift）。
+     残る重なりは「話者を手前に出す」ことで読めるようにする */
+  .char-layer[data-count="3"] .chara { --chara-fit: 0.75; --chara-lift: calc(var(--chara-h) * 0.12); }
+  .char-layer[data-count="3"] .chara[data-pos="left"]  { left: 15%; }
+  .char-layer[data-count="3"] .chara[data-pos="right"] { left: 85%; }
 }
+/* スマートフォン縦以外（横向き・タブレット・PC）：2 人以上のときは、横幅に収まる背丈までに抑える */
+@media (min-width: 561px), (orientation: landscape) {
+  .char-layer[data-count="2"] .chara { --chara-h: min(92dvh, 105vw); }
+  .char-layer[data-count="3"] .chara { --chara-h: min(92dvh, 76vw); }
+  .char-layer[data-count="3"] .chara[data-pos="left"]  { left: 22%; }
+  .char-layer[data-count="3"] .chara[data-pos="right"] { left: 78%; }
+}
+
+/* ---------- 複数人が並ぶときの作法（1 人だけのときは何も変えない） ----------
+   重なりの順：左右 → 中央 → 話者（いちばん手前）。話者は少し大きく、話者でない人は .is-dim で沈める。
+   地の文（話者なし）と、舞台にいない人の台詞では、全員ふつうの明るさ・同じ大きさのまま */
+.char-layer[data-count="2"] .chara[data-pos="center"],
+.char-layer[data-count="3"] .chara[data-pos="center"] { z-index: 1; }
+.char-layer[data-count="2"] .chara.is-speaker,
+.char-layer[data-count="3"] .chara.is-speaker { z-index: 2; scale: 1.04; }
 
 /* ---------- 光輪（画像に描かず SVG の別レイヤー。立ち絵の背面に置く。見た目は仮） ---------- */
 .chara-halo {
@@ -1226,6 +1235,7 @@ body:has(.game-screen.is-choosing) .chara.is-active { filter: brightness(0.6) dr
   .chara-halo[data-state="strong"],
   .chara-halo[data-state="bright"] { animation: none; opacity: 1; }
   .chara.fx-hop { animation: none; }
+  .char-layer .chara.is-speaker { scale: 1; }
 }
 /* 設定で演出をオフにしたとき：跳ねを止める（光輪の状態そのものは物語の情報なので残し、瞬きだけ静止にする） */
 body.fx-off .chara.fx-hop { animation: none; }

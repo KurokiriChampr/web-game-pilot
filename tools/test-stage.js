@@ -313,4 +313,119 @@ Object.keys(BASE.texts).forEach(function (id) {
 });
 eq(hashedParas >= 98, true, "全シーンの固有の段落を確認した");
 
+// ---- ver 3.0-p4：同時に最大 3 人（1 か所に 1 人）・複数人の話者・章 ----
+(function () {
+  var c3 = { a: { name: "A", chara: "a" }, b: { name: "B", chara: "b" }, c: { name: "C", chara: "c" }, ab: { name: "A と B", charas: ["a", "b"] }, far: { name: "声" } };
+  var at = function (pg, i) {
+    return Stage.stageAt(pg, i, { cast: c3 });
+  };
+  var where = function (st) {
+    return st.charas.map(function (c) {
+      return c.id + "@" + c.pos;
+    });
+  };
+  var pg = [
+    { text: "1", chara: "a" },
+    { text: "2", chara: "b" },
+    { text: "3", chara: "c" },
+    { text: "4", chara: "d" },
+    { text: "5", chara: "a", pos: "left" },
+    { text: "6", show: [{ chara: "x", pos: "left" }, { chara: "y", pos: "left" }] },
+    { text: "7", speaker: "ab" },
+    { text: "8", speaker: "far" },
+    { text: "9", speaker: "b", expr: "smile" }
+  ];
+  eq(where(at(pg, 0)), ["a@center"], "pos 省略の 1 人目は中央（従来どおり）");
+  eq(where(at(pg, 1)), ["a@center", "b@left"], "2 人目は空いている左");
+  eq(where(at(pg, 2)), ["a@center", "b@left", "c@right"], "3 人目は右");
+  eq(where(at(pg, 3)), ["b@left", "c@right", "d@center"], "4 人目は中央に立ち、中央にいた人が退場（3 人を超えない）");
+  eq(where(at(pg, 4)), ["c@right", "d@center", "a@left"], "出直した人が左を指定すると、左にいた人が退場");
+  eq(where(at(pg, 5)), ["c@right", "d@center", "y@left"], "同じページで同じ位置を 2 人が指定したら、後の人が残る");
+  eq(Stage.MAX_CHARAS, 3);
+
+  var duo = [{ text: "1", show: [{ chara: "a", pos: "left" }, { chara: "b", pos: "right" }, { chara: "c" }] }, { text: "2", speaker: "ab" }, { text: "3", speaker: "far" }, { text: "4", speaker: "b", expr: "smile" }];
+  eq(where(at(duo, 0)), ["a@left", "b@right", "c@center"]);
+  eq([at(duo, 1).speakerCharas, at(duo, 1).speakerChara], [["a", "b"], "a"], "cast の charas＝複数人が同時に話者");
+  eq([at(duo, 2).speakerCharas, at(duo, 2).speakerChara], [[], null], "舞台にいない人の台詞では話者の立ち絵なし");
+  eq(at(duo, 3).speakerCharas, ["b"]);
+  eq(at(duo, 3).charas[1], { id: "b", pose: "stand", expr: "smile", pos: "right" }, "話者の省略記法は、その人の表情だけを変える（位置は動かない）");
+  eq(at(duo, 1).charas, at(duo, 0).charas, "複数人の話者の省略記法は、誰の立ち絵も変えない");
+
+  // どんな順に出し入れしても：3 人以下・位置は重ならない・1 ページずつ進めた結果と飛んだ結果が同じ
+  var ids = ["a", "b", "c", "d", "e"];
+  var poss = [undefined, "left", "center", "right"];
+  var seed = 12345;
+  var rnd = function (n) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed % n;
+  };
+  for (var round = 0; round < 300; round++) {
+    var list = [];
+    for (var k = 0; k < 12; k++) {
+      var page = { text: "p" + k };
+      var kind = rnd(5);
+      if (kind === 0) page.hide = rnd(4) === 0 ? "*" : [ids[rnd(5)]];
+      else if (kind === 1) page.show = [{ chara: ids[rnd(5)], pos: poss[rnd(4)] }, { chara: ids[rnd(5)], pos: poss[rnd(4)] }];
+      else if (kind === 2) page.speaker = ids[rnd(5)];
+      else {
+        page.chara = ids[rnd(5)];
+        if (rnd(2)) page.pos = poss[rnd(4)];
+      }
+      list.push(page);
+    }
+    for (var n = 0; n < list.length; n++) {
+      var st = Stage.stageAt(list, n, { cast: {} });
+      ok(st.charas.length <= 3, "3 人以下");
+      var used = {};
+      st.charas.forEach(function (c) {
+        ok(!used[c.pos], "位置が重ならない");
+        used[c.pos] = true;
+      });
+    }
+  }
+
+  // 本作のシーンは 1 人だけ：新しい規則でも舞台状態は 59 種のまま（上の全数検査が同じ結果になることで確認済み）
+  Object.keys(STORY.scenes).forEach(function (id) {
+    var scene = STORY.scenes[id];
+    var raw = typeof scene.text === "function" ? scene.text({ flags: new Proxy({}, { get: function () { return true; } }), affection: 99, shards: 3 }) : scene.text;
+    for (var n2 = -1; n2 < raw.length; n2++) {
+      ok(Stage.stageAt(raw, n2, { stage: scene.stage, cast: STORY.cast }).charas.length <= 1, id + " は 1 人まで");
+    }
+  });
+
+  // 章
+  var story = { scenes: { intro: { title: "序" } } };
+  Stage.addChapter(story, { id: "ch1", title: "第一章", scenes: { a1: { title: "A" }, a2: { title: "B", chapter: "ch1" } } });
+  Stage.addChapter(story, { id: "ch2", title: "第二章", scenes: { b1: { title: "C" } } });
+  Stage.addChapter(story, { id: "ch1", scenes: { a3: { title: "D" } } });
+  eq(story.chapters, [{ id: "ch1", title: "第一章" }, { id: "ch2", title: "第二章" }], "同じ章を 2 回足しても登録は 1 つ");
+  eq(Object.keys(story.scenes), ["intro", "a1", "a2", "b1", "a3"]);
+  eq(Stage.chapterOf(story, "a3"), { id: "ch1", title: "第一章", index: 0 });
+  eq(Stage.chapterOf(story, "b1"), { id: "ch2", title: "第二章", index: 1 });
+  eq(Stage.chapterOf(story, "intro"), null, "章の無いシーン");
+  eq(Stage.chapterOf(STORY, "meet"), null, "本作は章を使っていない（幕の呼び名は従来どおり）");
+})();
+
+// ---- 物語データの点検（tools/validate-story.js）：本作は誤り・注意とも 0 件、検証用の別作品は誤り 0 件 ----
+(function () {
+  var loadWork = require(path.join(__dirname, "lib", "load-work.js")).loadWork;
+  var validate = require(path.join(__dirname, "validate-story.js")).validate;
+  var root = path.join(__dirname, "..");
+  var own = validate(loadWork({ roots: [root] }));
+  eq([own.errors, own.warnings], [[], []], "本作の物語データ");
+  eq([own.stats.scenes, own.stats.reachable, own.stats.endings, own.stats.maxOnStage], [20, 20, 4, 1]);
+  var trio = validate(loadWork({ roots: [path.join(__dirname, "fixtures", "trio"), root] }));
+  eq(trio.errors, [], "検証用の別作品（3 人）");
+  eq([trio.stats.maxOnStage, trio.warnings.length], [3, 2], "押し出しの 2 か所（わざと入れてある）を注意として拾う");
+  // 壊したデータを誤りとして拾えること
+  var bad = loadWork({ roots: [path.join(__dirname, "fixtures", "trio"), root] });
+  bad.STORY.scenes.gather.choices[0].next = "nowhere";
+  bad.STORY.scenes.walk.stage.show[0].chara = "ghost";
+  bad.STORY.scenes["a#b"] = { title: "x", text: [{ text: "t", speaker: "nobody2", pos: "middle" }], choices: [{ text: "c", next: "fin" }] };
+  var found = validate(bad).errors.join("\n");
+  ["nowhere", "ghost", "シーン ID に #", "nobody2", "middle"].forEach(function (word) {
+    ok(found.indexOf(word) !== -1, "誤りを拾う：" + word);
+  });
+})();
+
 console.log("OK: " + checks + " 件の検査に合格（全 " + V3.length + " シーン × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");

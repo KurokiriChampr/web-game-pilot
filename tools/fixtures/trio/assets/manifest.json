@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "basePath": "assets/",
+  "defaults": { "image": null, "bgm": null },
+  "title": { "image": "images/bg/village_plaza.webp" },
+  "backgrounds": {
+    "plaza": { "image": "images/bg/village_plaza.webp" },
+    "path": { "image": "images/forest.jpg" }
+  },
+  "characters": {
+    "aoi": {
+      "base": "images/chara/rine/",
+      "poses": { "stand": { "exprs": { "normal": "stand_normal.webp", "smile": "stand_smile.webp", "wry": "stand_wry.webp", "surprised": "stand_surprised.webp" } } }
+    },
+    "beni": {
+      "base": "images/chara/fx-beni/",
+      "poses": { "stand": { "exprs": { "normal": "stand_normal.svg", "surprised": "stand_surprised.svg" } } }
+    },
+    "sui": {
+      "base": "images/chara/fx-sui/",
+      "scale": 0.9,
+      "poses": { "stand": { "exprs": { "normal": "stand_normal.svg", "surprised": "stand_surprised.svg" } } }
+    },
+    "dan": {
+      "base": "images/chara/fx-dan/",
+      "poses": { "stand": { "exprs": { "normal": "stand_normal.svg" } } }
+    }
+  },
+  "scenes": {}
+}

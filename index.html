@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja" data-app-version="3.0-p3">
+<html lang="ja" data-app-version="3.0-p4">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,7 +7,9 @@
   <meta name="theme-color" content="#0b0c2a">
   <title>刻（とき）の女神と止まった世界</title>
   <!-- 版を上げるときは、下の ?v= と data-app-version、js/game.js の VERSION を同じ値にそろえる -->
-  <link rel="stylesheet" href="css/style.css?v=3.0-p3">
+  <!-- css/style.css＝エンジン共通の見た目／css/work.css＝この作品の配色（シーンのテーマ色） -->
+  <link rel="stylesheet" href="css/style.css?v=3.0-p4">
+  <link rel="stylesheet" href="css/work.css?v=3.0-p4">
 </head>
 <body class="theme-title">
   <!-- 操作アイコン（インライン SVG。<use href="#i-…"> で使う。絵文字は端末ごとに絵柄が変わるので使わない） -->
@@ -62,9 +64,9 @@
             <circle class="hand-pin" cx="48" cy="48" r="2.8"></circle>
           </svg>
         </div>
-        <p class="title-sub">異世界転生テキストアドベンチャー</p>
-        <h1 class="title-main">刻の女神と<br>止まった世界</h1>
-        <p class="title-lead">
+        <p id="title-sub" class="title-sub">異世界転生テキストアドベンチャー</p>
+        <h1 id="title-main" class="title-main">刻の女神と<br>止まった世界</h1>
+        <p id="title-lead" class="title-lead">
           目覚めた異世界は、すべての時間が止まっていた。<br>
           時の女神の少女とともに、三つの欠片を取り戻せ。
         </p>
@@ -88,7 +90,7 @@
     </div>
     <p class="title-foot">
       <span class="title-help">タップ / Enter で読み進め、選択肢は数字キーでも選べます</span>
-      <span id="app-version" class="title-version">ver 3.0-p3</span>
+      <span id="app-version" class="title-version">ver 3.0-p4</span>
     </p>
   </main>
 
@@ -97,11 +99,11 @@
     <!-- 上部 HUD（状態表示：欠片・女神の心。操作は下部のクイックバーへ。音量だけはここに残す） -->
     <header class="hud">
       <div id="hud-shards" class="hud-item" data-action="hud-shards" title="時の欠片">
-        <span class="hud-label">欠片</span>
+        <span id="hud-shards-label" class="hud-label">欠片</span>
         <span id="status-shards" class="hud-shards" role="img" aria-label="時の欠片"></span>
       </div>
       <div id="hud-heart" class="hud-item" data-action="hud-heart" title="女神の心">
-        <span class="hud-label hud-label-heart"><svg class="icon icon-fill" aria-hidden="true" focusable="false"><use href="#i-heart"></use></svg>心</span>
+        <span class="hud-label hud-label-heart"><svg class="icon icon-fill" aria-hidden="true" focusable="false"><use href="#i-heart"></use></svg><span id="hud-heart-label">心</span></span>
         <div id="heart-meter" class="heart-meter" role="meter" aria-label="女神の心" aria-valuemin="0" aria-valuemax="13" aria-valuenow="0">
           <div id="heart-fill" class="heart-fill"></div>
         </div>
@@ -294,7 +296,7 @@
       <div class="field field-danger">
         <button id="reset-data" class="btn btn-small" type="button" data-action="reset"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash"></use></svg>セーブと記録をすべて消去</button>
       </div>
-      <p class="modal-note modal-version">刻の女神と止まった世界　<span id="settings-version">ver 3.0-p3</span></p>
+      <p class="modal-note modal-version"><span id="settings-title">刻の女神と止まった世界</span>　<span id="settings-version">ver 3.0-p4</span></p>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
       </div>
@@ -312,9 +314,12 @@
     </div>
   </dialog>
 
-  <script src="js/story.js?v=3.0-p3"></script>
-  <script src="js/stage.js?v=3.0-p3"></script>
-  <script src="js/assets.js?v=3.0-p3"></script>
-  <script src="js/game.js?v=3.0-p3"></script>
+  <!-- 作品：work.js（題名・用語・保存キー）と story.js（物語）。エンジン：stage.js／assets.js／game.js。
+       長編で章ごとにファイルを分けるときは、stage.js のあとに章のファイルを並べる（docs/ENGINE.md） -->
+  <script src="js/work.js?v=3.0-p4"></script>
+  <script src="js/story.js?v=3.0-p4"></script>
+  <script src="js/stage.js?v=3.0-p4"></script>
+  <script src="js/assets.js?v=3.0-p4"></script>
+  <script src="js/game.js?v=3.0-p4"></script>
 </body>
 </html>
