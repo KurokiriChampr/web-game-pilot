@@ -19,8 +19,9 @@ ver 3.0-p4 時点。このリポジトリは「ノベルゲームのエンジン
 | ファイル | 中身 |
 | --- | --- |
 | `js/stage.js` | 舞台の計算（ページの正規化、誰がどこにいるか、話者、章） |
+| `js/state.js` | 状態の計算（最初の状態、セーブの検査と復元、effects・onEnter の適用、`next`・`text`・`requires` の解決、巻き戻し用の控え）。画面に触れず Node からも読める |
 | `js/assets.js` | 素材の読み込みと表示（背景のクロスフェード、立ち絵の枠、BGM） |
-| `js/game.js` | 進行（文字送り、ページ送り、選択肢）、既読・スキップ、オート、セーブ／ロード、バックログ・巻き戻し、設定、クイックバー、確認ダイアログ、古い画面の検出 |
+| `js/game.js` | いまの状態の保持と進行（文字送り、ページ送り、選択肢）、既読・スキップ、オート、セーブ／ロード、バックログ・巻き戻し、設定、クイックバー、確認ダイアログ、古い画面の検出 |
 | `css/style.css` | 画面構成と部品の見た目、立ち絵の並べ方、レスポンシブ対応 |
 | `index.html` | 画面の骨組み（部品の id は `js/game.js` の `ELEMENT_IDS` と対応） |
 | `tools/` | プレビュー用サーバ、物語データの点検、作品を Node で読む共通処理 |
@@ -107,14 +108,14 @@ prologue_2: { title: "駅まで", text: ["……"], next: function (s) { return 
 
 ## 5. 別作品へ持ち出す手順
 
-1. **コピーするもの（エンジン）**：`index.html`、`css/style.css`、`js/stage.js`、`js/assets.js`、`js/game.js`、`tools/preview-server.js`、`tools/validate-story.js`、`tools/lib/`。
+1. **コピーするもの（エンジン）**：`index.html`、`css/style.css`、`js/stage.js`、`js/state.js`、`js/assets.js`、`js/game.js`、`tools/preview-server.js`、`tools/validate-story.js`、`tools/lib/`。
 2. **新しく書くもの（作品）**：`js/work.js`、`js/story.js`、`css/work.css`、`assets/manifest.json`、`assets/`。ひな形は `tools/fixtures/trio/`（3 ファイルだけの最小の作品）が使える。
 3. **`js/work.js`**：`id` を決める（ほかの作品と重ならない名前）。題名・紹介文・HUD の用語・スロット数を書く。
 4. **`js/story.js`**：`start`、`cast`、`scenes`、`maxShards`（使わなければ 0）、`maxAffection`、`endingCount`。
 5. **`assets/manifest.json`**：`title`（タイトルの絵）、`backgrounds`、`characters`。光輪を使わない人物には `halo` を書かない。
 6. **`css/work.css`**：使うテーマ（`scene.theme`）の配色を書く。基調色を変えるなら `:root` の変数を上書きする。
 7. **`index.html` の書き換え**：`<meta name="description">` と `theme-color`、`<title>`（読み込み前に見える分）、タイトル画面の紋章（文字盤の針）が合わなければ差し替えるか外す。長編なら章のファイルの `<script>` を足す。部品の id は変えない。
-8. **版**：`index.html` の `data-app-version`・`?v=`（7 か所）と `js/game.js` の `VERSION` を、その作品の版にそろえる。
+8. **版**：`index.html` の `data-app-version`・`?v=`（8 か所）と `js/game.js` の `VERSION` を、その作品の版にそろえる。
 9. **点検と確認**：`node tools/validate-story.js` で誤り 0 件にする。`node tools/preview-server.js --placeholders` で、素材が届く前でも画面を確かめられる。
 
 エンジンを差し替えずに別作品を動かす確認は、`node tools/preview-server.js --work <作品のフォルダ> --placeholders` でできる（作品のフォルダにあるファイルが優先され、無いものはこのリポジトリのものが使われる）。

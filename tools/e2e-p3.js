@@ -280,8 +280,8 @@ function staticChecks() {
   var js = fs.readFileSync(path.join(ROOT, "js", "game.js"), "utf8");
   same((/data-app-version="([^"]+)"/.exec(html) || [])[1], VERSION, "index.html の data-app-version");
   var queries = html.match(/\?v=[\w.-]+(?=")/g) || [];
-  // ver 3.0-p4〜：css/work.css と js/work.js が増えて 7 か所
-  same(queries, ["?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION], "?v= は 7 か所とも同じ版");
+  // ver 3.0-p4〜：css/work.css と js/work.js が増えて 7 か所。js/state.js の切り出し（次期設計 第2弾B）で 8 か所
+  same(queries, ["?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION, "?v=" + VERSION], "?v= は 8 か所とも同じ版");
   same((/var VERSION = "([^"]+)"/.exec(js) || [])[1], VERSION, "game.js の VERSION");
   same((html.match(/ver 3\.0-p\d+/g) || []).filter(function (v) { return v !== "ver " + VERSION; }), [], "画面に書いてある版表記");
   var block = /var ELEMENT_IDS = \{([\s\S]*?)\n {2}\};/.exec(js)[1];
