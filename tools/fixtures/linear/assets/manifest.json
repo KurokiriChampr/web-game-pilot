@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "basePath": "assets/",
+  "defaults": { "image": null, "bgm": null },
+  "title": { "image": null },
+  "backgrounds": {},
+  "characters": {},
+  "scenes": {}
+}

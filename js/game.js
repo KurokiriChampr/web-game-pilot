@@ -83,7 +83,8 @@
   // メッセージウィンドウのページ送り（1 段落 = 1 ページ）
   // pages = 正規化済みのページ（{ text, speaker, ... }）、paras = その本文（文字列）だけ
   // read = シーンに入った時点で、各ページが既読だったか（スキップと「既読は一瞬で表示」の判定に使う）
-  var pager = { pages: [], paras: [], read: [], staged: false, index: 0, pageDone: false, ended: false };
+  var pager = { pages: [], paras: [], read: [], staged: false, index: 0, pageDone: false, ended: false, waitNext: false };
+  // waitNext＝最終ページを読み終え、scene.next へ進む送りを待っている（保存しない）
   var auto = { on: false, timer: 0 }; // オートモード（保存しない。画面を開いているあいだだけの状態）
   var confirmRun = null; // 確認ダイアログで「はい」を押したときに実行する処理
   var OVERLAY_LOCK_MS = 450; // 連打で選択肢を誤って押さないための待ち時間
@@ -189,6 +190,11 @@
     return (scene.choices || []).filter(function (c) {
       return !c.requires || c.requires(s);
     });
+  }
+
+  /** シーンの最後に next へ進むか（結末でなく、next があり、見える選択肢が 0 個のとき。見える選択肢があれば選択肢が優先） */
+  function goesNext(scene, s) {
+    return !!scene && !scene.ending && scene.next != null && !visibleChoices(scene, s).length;
   }
 
   function currentScene() {
@@ -823,7 +829,10 @@
     openOverlay(els.endingOverlay);
   }
 
-  /** シーンの本文を最後まで表示し終えたとき（選択肢またはエンディングを出す） */
+  /**
+   * シーンの本文を最後まで表示し終えたとき。結末 → 見える選択肢 → next の順に分ける。
+   * next のときは送りの印を出して待つ（もう一度送ると次のシーンへ。自動では切り替えない）。
+   */
   function endOfScene() {
     if (pager.ended) return;
     pager.ended = true;
@@ -835,6 +844,10 @@
     if (scene.ending) {
       setAuto(false);
       showEnding(scene);
+    } else if (goesNext(scene, state)) {
+      pager.waitNext = true;
+      els.nextMark.hidden = false;
+      scheduleAuto(); // オートなら、いつもの待ち時間のあとで次のシーンへ
     } else showChoices(scene);
     renderQuickbar();
   }
@@ -907,6 +920,10 @@
       finishTyping();
       return;
     }
+    if (pager.waitNext && pager.pageDone) {
+      followNext();
+      return;
+    }
     if (pager.pageDone && !pager.ended && pager.index < pager.paras.length - 1) {
       pager.index += 1;
       showPage();
@@ -939,8 +956,8 @@
   /** いまのページを表示し終えていれば、文字数に応じた時間のあとで次のページへ進む */
   function scheduleAuto() {
     clearAutoTimer();
-    if (!auto.on || !inGame() || !pager.pageDone || pager.ended) return;
-    if (pager.index >= pager.paras.length - 1) return;
+    if (!auto.on || !inGame() || !pager.pageDone) return;
+    if (pager.ended ? !pager.waitNext : pager.index >= pager.paras.length - 1) return; // 送り待ち（next）のときだけ最終ページからも進む
     var speed = AUTO_SPEEDS[settings.autoSpeed] || AUTO_SPEEDS[1];
     var chars = Array.from(pager.paras[pager.index] || "").length;
     auto.timer = window.setTimeout(function () {
@@ -998,6 +1015,7 @@
     pager.read = readFlags(id, pager.paras);
     pager.index = opts.toEnd ? Math.max(0, pager.paras.length - 1) : 0;
     pager.ended = false;
+    pager.waitNext = false;
     pager.stepLabel = stepLabel;
     applyStage(true); // 背景・立ち絵・BGM をシーン先頭の状態に合わせる
     if (pager.staged) {
@@ -1037,6 +1055,26 @@
     pushLog({ k: "c", text: choice.text, s: snapshotOf(state) }); // s＝選ぶ直前の状態の控え（巻き戻し用）
     markRead([choiceKey(state.scene, choice.text)]);
     applyEffects(state, choice.effects);
+    enterScene(next, before);
+  }
+
+  /** scene.next（選択肢なしの遷移）：送り待ちのときに送られたら、行き先を決めて次のシーンへ入る */
+  function followNext() {
+    var scene = currentScene();
+    if (!goesNext(scene, state)) return;
+    var next = resolve(scene.next, restoreState(state));
+    if (!STORY.scenes[next]) {
+      console.error("存在しないシーンです:", next);
+      return;
+    }
+    enterScene(next, { shards: state.shards, affection: state.affection });
+  }
+
+  /**
+   * 次のシーンへ入る（選択肢と next で共通）：scene の書き換え、幕の数 +1、行き先の onEnter、
+   * バックログにシーンの行、オートセーブ（renderScene）、最初のページから表示。before は遷移前の欠片・好感度（通知用）
+   */
+  function enterScene(next, before) {
     state.scene = next;
     state.steps += 1;
     applyEffects(state, STORY.scenes[next].onEnter);

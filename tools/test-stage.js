@@ -428,4 +428,104 @@ eq(hashedParas >= 98, true, "全シーンの固有の段落を確認した");
   });
 })();
 
+// ---- 選択肢なしのシーン遷移（scene.next）の点検：併用の規則・輪・到達できるシーン ----
+(function () {
+  var loadWork = require(path.join(__dirname, "lib", "load-work.js")).loadWork;
+  var validate = require(path.join(__dirname, "validate-story.js")).validate;
+  var roots = [path.join(__dirname, "fixtures", "linear"), path.join(__dirname, "..")];
+  var fresh = function () {
+    return loadWork({ roots: roots });
+  };
+  var has = function (list, scene, word) {
+    return list.some(function (m) {
+      return m.indexOf("シーン " + scene) === 0 && m.indexOf(word) !== -1;
+    });
+  };
+
+  // 検証用の一本道の作品：誤り・注意とも 0。next の行き先（s2・end_straight は next でしか行けない）も到達に数える
+  var base = validate(fresh());
+  eq([base.errors, base.warnings], [[], []], "検証用の一本道の作品");
+  eq([base.stats.scenes, base.stats.reachable, base.stats.endings], [13, 13, 3], "next の行き先も到達できるシーンに数える");
+  var cut = fresh();
+  cut.STORY.scenes.s1.next = "end_straight"; // s2 へ行く道は s1 の next だけ
+  var cutR = validate(cut);
+  ok(has(cutR.warnings, "s2", "たどり着けません"), "next でしか行けないシーンは、その next が無くなると到達できない");
+  eq(cutR.stats.reachable, 12);
+  var fnCut = fresh();
+  fnCut.STORY.scenes.gate.next = function () {
+    return "fork";
+  };
+  ok(has(validate(fnCut).warnings, "door", "たどり着けません"), "関数の next は試した状態で返った行き先だけを数える");
+
+  // 併用の規則（設計書 §2-1 (c) の表の各行）
+  var w = fresh();
+  w.STORY.scenes.end_a.next = "opening"; // 1. 結末に next → 注意
+  w.STORY.scenes.lastroad.choices.forEach(function (c) {
+    c.requires = function (s) {
+      return !!s.flags.key;
+    };
+  }); // 2. choices だけで、全部に requires → 注意
+  var wr = validate(w);
+  eq(wr.errors, [], "注意だけで誤りは無い");
+  ok(has(wr.warnings, "end_a", "結末のシーンに next"), "結末の next は注意");
+  ok(has(wr.warnings, "lastroad", "すべての選択肢に requires"), "全部の選択肢に requires は注意");
+  eq(wr.warnings.length, 2);
+  ok(!has(base.warnings, "fork", "requires") && !has(base.warnings, "door", "requires"), "requires だけの選択肢でも next があれば注意しない");
+  ok(!has(base.errors, "fork", "") && !has(base.errors, "door", ""), "choices と next の両方は誤りにしない");
+
+  var e = fresh();
+  e.STORY.scenes.l1.next = "nowhere"; // 3. next だけで行き先が無い → 誤り
+  e.STORY.scenes.gate.next = function (s) {
+    return s.flags.key ? "door" : "nowhere2"; // 関数の行き先も試す
+  };
+  e.STORY.scenes.fork.next = "nowhere3"; // 両方ある場合も行き先は点検する
+  delete e.STORY.scenes.s1.next; // 5. どちらも無い → 誤り
+  e.STORY.scenes.r1.next = 42; // 型の誤り
+  var er = validate(e);
+  ok(has(er.errors, "l1", "nowhere"), "next の行き先が無い（文字列）");
+  ok(has(er.errors, "gate", "nowhere2"), "next の行き先が無い（関数）");
+  ok(has(er.errors, "fork", "nowhere3"), "選択肢と併用した next の行き先が無い");
+  ok(has(er.errors, "s1", "選択肢も next もありません"), "どちらも無いシーンの文言");
+  ok(has(er.errors, "r1", "next はシーン ID"), "next の型");
+  ok(!er.errors.concat(er.warnings).some(function (m) {
+    return m.indexOf("結末でないのに選択肢がありません") !== -1;
+  }), "旧い文言は出ない");
+  var unknown = fresh();
+  unknown.STORY.scenes.l1.nxt = "l2";
+  ok(has(validate(unknown).errors, "l1", "知らない項目 nxt"), "next 以外の知らない項目は今までどおり誤り");
+
+  // 輪：next だけで抜けられない A → B → A は誤り。関数で状態しだいで抜けられるなら注意
+  var loop = fresh();
+  loop.STORY.scenes.l2.next = "l1";
+  var lr = validate(loop);
+  ok(has(lr.errors, "l1", "抜けられません") && lr.errors.join().indexOf("l1・l2") !== -1, "A → B → A を誤りにする");
+  var self = fresh();
+  self.STORY.scenes.s2.next = "s2";
+  ok(has(validate(self).errors, "s2", "抜けられません"), "自分自身へ戻る next も輪");
+  var esc = fresh();
+  esc.STORY.scenes.l2.next = function (s) {
+    return s.flags.left ? "l1" : "gate";
+  };
+  var escR = validate(esc);
+  eq(escR.errors, [], "関数で抜けられる輪は誤りにしない");
+  ok(has(escR.warnings, "l2", "関数しだいで抜けられます"), "関数で抜けられる輪は注意");
+  var viaChoice = fresh();
+  viaChoice.STORY.scenes.lastroad.choices[1].next = "l1";
+  viaChoice.STORY.scenes.l2.next = "lastroad";
+  eq([validate(viaChoice).errors, validate(viaChoice).warnings], [[], []], "選択肢を挟む輪は、選んで抜けられるので点検しない");
+
+  // 長編の生成データ：既定の出力は変えない／--linear（一本道を混ぜる）でも誤り・注意 0、全シーンに到達できる
+  var gen = require(path.join(__dirname, "fixtures", "long", "gen.js"));
+  var plain = gen.build({ chapters: 3, scenesPerChapter: 20 });
+  ok(Object.keys(plain.files).every(function (k) {
+    return plain.files[k].indexOf("        next:") === -1; // シーンの next（選択肢の next は同じ行の中に書かれる）
+  }), "既定の生成データは next を使わない");
+  var mixed = gen.build({ chapters: 3, scenesPerChapter: 20, linear: true });
+  var lw = loadWork({ roots: [path.join(__dirname, "..")], files: mixed.files });
+  var lv = validate(lw);
+  eq([lv.errors, lv.warnings], [[], []], "一本道を混ぜた生成データ");
+  eq(lv.stats.reachable, lv.stats.scenes, "一本道を混ぜても全シーンに到達できる");
+  ok(mixed.stats.linear > 0, "一本道のシーンがある（" + mixed.stats.linear + "）");
+})();
+
 console.log("OK: " + checks + " 件の検査に合格（全 " + V3.length + " シーン × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");

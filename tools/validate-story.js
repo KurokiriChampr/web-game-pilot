@@ -7,11 +7,14 @@
  *   オプション: --quiet（注意を個別に出さない）  --strict（注意が 1 件でもあれば失敗にする）
  *
  * 誤り（終了コード 1）：動かない・壊れる原因になるもの
- *   作品 ID が無い／開始シーンが無い／行き先の無い選択肢／cast に無い話者／知らない項目名／
- *   manifest に無い背景・人物・ポーズ・表情／シーン ID に # や > が入っている／章の指定が登録されていない
+ *   作品 ID が無い／開始シーンが無い／行き先の無い選択肢・next／選択肢も next も無いシーン／cast に無い話者／
+ *   知らない項目名／manifest に無い背景・人物・ポーズ・表情／シーン ID に # や > が入っている／章の指定が登録されていない／
+ *   next だけで輪になっていて抜けられない並び（A → B → A）
  * 注意（終了コード 0）：動くが、意図どおりか確かめたいもの
  *   退場の指定なしに押し出された立ち絵（1 か所に 1 人・最大 3 人の規則による）／同じシーンに同じ本文のページ
- *   （既読の記録が共有される）／どこからも行けないシーン／結末の数と endingCount の不一致／css に無いテーマ
+ *   （既読の記録が共有される）／どこからも行けないシーン／結末の数と endingCount の不一致／css に無いテーマ／
+ *   結末のシーンの next／全部に requires が付いた選択肢（next が無いと、全部隠れたとき進めない）／
+ *   next だけの輪で、行き先の関数しだいで抜けられるもの
  *
  * 本文や選択肢が関数のシーンは、その関数が見ているフラグを「全部なし／全部あり／1 つずつ」で試す
  * （好感度と欠片は下限・0・上限）。組合せの全数ではないので、3 つ以上のフラグの重なりでだけ起きる問題は見つけられない。
@@ -23,7 +26,7 @@ var loadWork = require("./lib/load-work.js").loadWork;
 var ENGINE_ROOT = require("./lib/load-work.js").ENGINE_ROOT;
 
 var PAGE_KEYS = ["text", "speaker", "chara", "pose", "expr", "pos", "show", "hide", "bg", "cg", "halo", "fx", "portraits"];
-var SCENE_KEYS = ["title", "icon", "theme", "text", "stage", "choices", "onEnter", "ending", "fx", "enter", "chapter"];
+var SCENE_KEYS = ["title", "icon", "theme", "text", "stage", "choices", "onEnter", "ending", "fx", "enter", "chapter", "next"];
 var STAGE_KEYS = ["bg", "cg", "halo", "show", "hide"];
 var CHOICE_KEYS = ["text", "next", "effects", "requires"];
 var PAGE_FX = ["hop", "shake", "flash"];
@@ -63,6 +66,77 @@ function sampleStates(story, flags) {
     });
   });
   return out;
+}
+
+/** シーンの next の行き先（関数なら、試す状態ごとに呼んで重複を除く）。onError があれば例外を知らせる */
+function nextTargetsOf(scene, states, onError) {
+  var targets = [];
+  if (typeof scene.next === "string") targets.push(scene.next);
+  else if (typeof scene.next === "function") {
+    states.forEach(function (st) {
+      try {
+        var t = scene.next(JSON.parse(JSON.stringify(st)));
+        if (targets.indexOf(t) === -1) targets.push(t);
+      } catch (e) {
+        if (onError) onError("関数が例外を出しました：" + e.message);
+      }
+    });
+  }
+  return targets;
+}
+
+/**
+ * next だけで進むシーン（選択肢の無い一本道）どうしの輪を探す。
+ * 輪の外へ出る行き先が 1 つも無ければ誤り（オートのまま回り続ける）。行き先の関数しだいで出られるなら注意。
+ * 関数の行き先は試した状態の範囲で判定する（試していない状態でだけ抜けられる関数は、誤りとして報告される）。
+ */
+function checkNextLoops(scenes, linear, err, warn) {
+  var ids = Object.keys(linear);
+  // 強連結成分（Tarjan）。行き先が一本道のシーンのときだけ辺とみなす
+  var index = {};
+  var low = {};
+  var onStack = {};
+  var stack = [];
+  var counter = 0;
+  var groups = [];
+  function visit(v) {
+    index[v] = low[v] = counter++;
+    stack.push(v);
+    onStack[v] = true;
+    linear[v].forEach(function (w) {
+      if (!linear[w]) return;
+      if (index[w] === undefined) {
+        visit(w);
+        low[v] = Math.min(low[v], low[w]);
+      } else if (onStack[w]) low[v] = Math.min(low[v], index[w]);
+    });
+    if (low[v] === index[v]) {
+      var group = [];
+      var w;
+      do {
+        w = stack.pop();
+        onStack[w] = false;
+        group.push(w);
+      } while (w !== v);
+      groups.push(group);
+    }
+  }
+  ids.forEach(function (v) {
+    if (index[v] === undefined) visit(v);
+  });
+  groups.forEach(function (group) {
+    var looped = group.length > 1 || linear[group[0]].indexOf(group[0]) !== -1;
+    if (!looped) return;
+    var exits = group.filter(function (v) {
+      return linear[v].some(function (w) {
+        return group.indexOf(w) === -1;
+      });
+    });
+    var members = group.slice().sort();
+    var list = "輪のシーン：" + members.join("・");
+    if (!exits.length) err("シーン " + members[0], "next だけで輪になっていて抜けられません（" + list + "）");
+    else warn("シーン " + exits.sort()[0], "next だけの輪です。行き先の関数しだいで抜けられます（" + list + "）");
+  });
 }
 
 function validate(work) {
@@ -143,12 +217,21 @@ function validate(work) {
       else if (endingIds[scene.ending.id]) err(at, "結末 ID " + scene.ending.id + " が " + endingIds[scene.ending.id] + " と重複しています");
       else endingIds[scene.ending.id] = id;
       if (toList(scene.choices).length) warn(at, "結末のシーンに選択肢があります（表示されません）");
-    } else if (!toList(scene.choices).length) {
-      err(at, "結末でないのに選択肢がありません（先へ進めなくなります）");
+      if (scene.next != null) warn(at, "結末のシーンに next があります（使われません）");
+    } else if (!toList(scene.choices).length && scene.next == null) {
+      err(at, "選択肢も next もありません（先へ進めなくなります）");
+    } else if (scene.next == null) {
+      var guarded = toList(scene.choices).every(function (c) {
+        return isObject(c) && typeof c.requires === "function";
+      });
+      if (guarded) warn(at, "すべての選択肢に requires があります（全部隠れると先へ進めなくなります。next を足すと、そのときの行き先になります）");
+    }
+    if (scene.next != null && typeof scene.next !== "string" && typeof scene.next !== "function") {
+      err(at, "next はシーン ID（文字列）か、状態を受け取って ID を返す関数にしてください");
     }
 
     // ---- 本文（関数なら、見ているフラグを振って試す） ----
-    var fns = [scene.text].concat(
+    var fns = [scene.text, scene.next].concat(
       toList(scene.choices).reduce(function (list, c) {
         return list.concat([c && c.next, c && c.requires]);
       }, [])
@@ -275,15 +358,25 @@ function validate(work) {
         if (!scenes[t]) err(where, "行き先のシーン " + JSON.stringify(t) + " がありません");
       });
     });
+
+    // ---- next（選択肢なしの遷移。結末では使われない） ----
+    if (!scene.ending) {
+      nextTargetsOf(scene, states, function (msg) {
+        err(at + " の next", msg);
+      }).forEach(function (t) {
+        if (!scenes[t]) err(at + " の next", "行き先のシーン " + JSON.stringify(t) + " がありません");
+      });
+    }
   });
-  // 到達できるシーン（開始シーンから選択肢をたどる）
+  // 到達できるシーン（開始シーンから選択肢と next をたどる）
   var seen = {};
   var stack = scenes[STORY.start] ? [STORY.start] : [];
   var edges = {};
+  var linear = {}; // next だけで進むシーン → 行き先の一覧（輪の点検用）
   ids.forEach(function (id) {
     edges[id] = [];
     var scene = scenes[id];
-    var flags = [];
+    var flags = typeof scene.next === "function" ? flagsIn(scene.next) : [];
     toList(scene.choices).forEach(function (c) {
       if (c && typeof c.next === "function") flags = flags.concat(flagsIn(c.next));
     });
@@ -301,7 +394,18 @@ function validate(work) {
         });
       }
     });
+    if (!scene.ending) {
+      nextTargetsOf(scene, states).forEach(function (t) {
+        edges[id].push(t);
+      });
+      if (scene.next != null && !toList(scene.choices).length) {
+        linear[id] = nextTargetsOf(scene, states).filter(function (t) {
+          return !!scenes[t];
+        });
+      }
+    }
   });
+  checkNextLoops(scenes, linear, err, warn);
   while (stack.length) {
     var cur = stack.pop();
     if (seen[cur] || !scenes[cur]) continue;
