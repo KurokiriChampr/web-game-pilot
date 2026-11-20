@@ -381,7 +381,7 @@
   var snapshotOf = State.snapshotOf;
   function canRewindTo(index) {
     var entry = state && state.log[index];
-    return !!entry && entry.k === "c" && isValidSave(entry.s);
+    return !!entry && entry.k === "c" && State.canRewindFrom(entry.s); // 変数を宣言した作品では vars の無い旧い控えから戻れない
   }
   function lastChoiceIndex() {
     if (!state) return -1;

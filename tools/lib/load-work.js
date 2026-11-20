@@ -5,7 +5,7 @@
  * 1 つの空間で実行する。エンジンの画面側（assets.js・game.js）は実行しない。
  *
  *   loadWork({ roots: [作品の差し替え分, エンジン], files: { パス: 内容 } })
- *     → { STORY, WORK, Stage, manifest, scripts: [読んだ順のパス], read(rel) }
+ *     → { STORY, WORK, Stage, State, manifest, scripts: [読んだ順のパス], read(rel) }（State は js/state.js の GameState）
  * roots は先頭から順に探す（tools/preview-server.js の roots と同じ重ね合わせ）。files はメモリ上のファイル。
  */
 "use strict";
@@ -59,7 +59,7 @@ function loadWork(options) {
       manifest = null;
     }
   }
-  return { STORY: sandbox.STORY, WORK: sandbox.WORK, Stage: sandbox.GameStage, manifest: manifest, scripts: scripts, read: read };
+  return { STORY: sandbox.STORY, WORK: sandbox.WORK, Stage: sandbox.GameStage, State: sandbox.GameState, manifest: manifest, scripts: scripts, read: read };
 }
 
 module.exports = { loadWork: loadWork, ENGINE_ROOT: ENGINE_ROOT };
