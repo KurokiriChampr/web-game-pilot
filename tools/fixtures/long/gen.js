@@ -5,7 +5,9 @@
  *   var files = require("./gen.js").build({ chapters: 40, scenesPerChapter: 20 }).files;
  *     → { "index.html", "js/work.js", "js/story.js", "js/chapters/ch01.js", …, "assets/manifest.json" }
  *     tools/preview-server.js の createServer({ files }) にそのまま渡せる（エンジンと画像は本体のものを使う）。
- *   node tools/fixtures/long/gen.js --out <フォルダ> [--chapters 40] [--scenes 20]   … ファイルに書き出す
+ *   node tools/fixtures/long/gen.js --out <フォルダ> [--chapters 40] [--scenes 20] [--linear]   … ファイルに書き出す
+ *     --linear（build の linear: true）：一本道を混ぜる。各章の 4 で割って 2・3 余る場面（検証用の飛び先を除く）を、
+ *     選択肢の代わりに scene.next で次の場面へ進める。付けないときの出力は従来と 1 文字も変わらない。
  *
  * 作り：章ごとに 1 ファイル（GameStage.addChapter）。シーンは一本道＋ときどきフラグ。
  *   4 シーンに 1 つは「前のシーンで立てたフラグで段落が増える」関数の本文。立ち絵は本作の素材を 1 人ぶん流用。
@@ -44,6 +46,7 @@ function build(options) {
   var N = options.scenesPerChapter || 20;
   var files = {};
   var stats = { chapters: C, scenes: 0, pagesMax: 0, chars: 0 };
+  if (options.linear) stats.linear = 0;
 
   function pageText(c, s, p) {
     var k = c * 131 + s * 17 + p * 7;
@@ -94,6 +97,17 @@ function build(options) {
     );
     if (c === 1 && s === 2) choices.push('{ text: "ここで旅をやめる", next: "end_b" }');
     if (c === 1 && s === 3) choices.push('{ text: "（検証用）最終章の手前まで飛ぶ", next: "' + sceneId(C, N - 1) + '" }');
+    var linear = !!options.linear && (s % 4 === 2 || s % 4 === 3) && !(c === 1 && (s === 2 || s === 3)) && !last;
+    if (linear) {
+      stats.linear += 1;
+      return (
+        "      " + id + ": {\n" +
+        '        title: "場面 ' + c + "-" + s + '",\n        icon: "◇",\n        theme: "' + THEMES[(c + s) % THEMES.length] + '",\n' +
+        '        stage: { bg: "' + BGS[(c * 3 + s) % BGS.length] + '" },\n' +
+        "        text: " + textSrc + ",\n" +
+        '        next: "' + next + '"\n      }'
+      );
+    }
     return (
       "      " + id + ": {\n" +
       '        title: "場面 ' + c + "-" + s + '",\n        icon: "◇",\n        theme: "' + THEMES[(c + s) % THEMES.length] + '",\n' +
@@ -207,7 +221,11 @@ if (require.main === module) {
     return i !== -1 ? args[i + 1] : fallback;
   };
   var out = arg("--out", null);
-  var built = build({ chapters: parseInt(arg("--chapters", "40"), 10), scenesPerChapter: parseInt(arg("--scenes", "20"), 10) });
+  var built = build({
+    chapters: parseInt(arg("--chapters", "40"), 10),
+    scenesPerChapter: parseInt(arg("--scenes", "20"), 10),
+    linear: args.indexOf("--linear") !== -1
+  });
   console.log(built.stats);
   if (out) {
     Object.keys(built.files).forEach(function (rel) {
