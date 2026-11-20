@@ -35,3 +35,14 @@
 - 実機（iOS Safari／Android Chrome）での表示確認（3.0-p4 以来の残件と同種）。
 - e2e-p5.js の実行（Playwright のある環境で別途）。
 - 次は第2弾B（`js/state.js` の切り出し）へ進む。
+
+## 追記（2026-11-21、e2e の実測結果）
+
+「未解決」に残していた e2e-p5.js の実行は、メインチャット側で実測済み（Playwright は `NODE_PATH=/home/hatch/.pw-node/node_modules` で使用可能だった）。
+
+- `tools/e2e-p5.js`：OK、66 件合格（送り・最終ページ停止・選択肢優先・オート通過・スキップ停止・バックログ・巻き戻し・セーブ／ロード）
+- `tools/e2e.js`：全 20 シーン通し、4 エンディング到達、エラーなし
+- `tools/e2e-phase2.js`：83 件合格
+- `tools/e2e-p3.js`／`tools/e2e-p4.js`：完走、異常なし
+
+これで本報告書の未解決は、実機（iOS Safari／Android Chrome）での表示確認のみとなった。
