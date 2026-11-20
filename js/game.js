@@ -3,11 +3,11 @@
  * 作品ごとに変わるものは、このファイルには書かない：
  *   js/work.js（WORK＝題名・用語・保存キーの接頭辞・上限値）／js/story.js（STORY＝物語データ）／
  *   assets/manifest.json（素材の対応表）／css/work.css（配色）。境界の説明は docs/ENGINE.md。
- * 状態管理（シーン・好感度・欠片・フラグ）、画面描画、文字送り、
+ * 状態（シーン・好感度・欠片・フラグ）の保持と進行、画面描画、文字送り、
  * セーブ／ロード、バックログ（選択肢への巻き戻し）、既読（ページ単位）、オート、設定を担当する。
  * 画面はビジュアルノベル型（全面背景＋立ち絵＋下部メッセージウィンドウ）。
  * 本文は 1 段落ずつメッセージウィンドウに表示し、タップ / Enter で読み進める。
- * 画像・立ち絵・BGM は js/assets.js（GameAssets）に任せる。
+ * 画像・立ち絵・BGM は js/assets.js（GameAssets）、状態の計算は js/state.js（GameState）に任せる。
  * file:// でも動くよう ES Modules は使わず、通常の <script> で読み込む。
  */
 (function () {
@@ -20,6 +20,7 @@
   var WORK = window.WORK && typeof window.WORK === "object" ? window.WORK : {}; // 作品設定（js/work.js）
   var Assets = window.GameAssets;
   var Stage = window.GameStage; // ページの正規化と舞台状態の計算（js/stage.js）
+  var State = window.GameState.create(STORY); // 状態の計算（js/state.js）
 
   /** 作品設定から値を取る。cfg("hud.shards.name", "欠片")。無い・型が違うときは fallback */
   function cfg(path, fallback) {
@@ -146,56 +147,15 @@
   }
 
   // ---------- 状態 ----------
-  function newState() {
-    return { scene: STORY.start, affection: 0, shards: 0, flags: {}, steps: 0, log: [] };
-  }
-
-  function isValidSave(s) {
-    return !!(
-      s &&
-      typeof s.scene === "string" &&
-      STORY.scenes[s.scene] &&
-      !STORY.scenes[s.scene].ending &&
-      typeof s.affection === "number" &&
-      typeof s.shards === "number" &&
-      s.flags &&
-      typeof s.flags === "object"
-    );
-  }
-
-  /** セーブデータを複製し、旧バージョンに無い項目を補う */
-  function restoreState(saved) {
-    var s = JSON.parse(JSON.stringify(saved));
-    if (typeof s.steps !== "number") s.steps = 0;
-    if (!Array.isArray(s.log)) s.log = [];
-    return s;
-  }
-
-  function applyEffects(s, effects) {
-    if (!effects) return;
-    if (effects.affection) s.affection += effects.affection;
-    if (effects.shards) s.shards = Math.min(STORY.maxShards || 0, s.shards + effects.shards);
-    if (effects.flags) {
-      Object.keys(effects.flags).forEach(function (k) {
-        s.flags[k] = effects.flags[k];
-      });
-    }
-  }
-
-  function resolve(value, s) {
-    return typeof value === "function" ? value(s) : value;
-  }
-
-  function visibleChoices(scene, s) {
-    return (scene.choices || []).filter(function (c) {
-      return !c.requires || c.requires(s);
-    });
-  }
-
-  /** シーンの最後に next へ進むか（結末でなく、next があり、見える選択肢が 0 個のとき。見える選択肢があれば選択肢が優先） */
-  function goesNext(scene, s) {
-    return !!scene && !scene.ending && scene.next != null && !visibleChoices(scene, s).length;
-  }
+  // 状態の計算（生成・セーブの検査と復元・effects の適用・条件の解決）は js/state.js（GameState）にある。
+  // ここではいまの状態 state を持ち、画面と進行に結びつける。
+  var newState = State.newState;
+  var isValidSave = State.isValidSave;
+  var restoreState = State.restoreState;
+  var applyEffects = State.applyEffects;
+  var resolve = State.resolve;
+  var visibleChoices = State.visibleChoices;
+  var goesNext = State.goesNext;
 
   function currentScene() {
     return state ? STORY.scenes[state.scene] : null;
@@ -417,17 +377,8 @@
   }
 
   // ---------- 選択肢への巻き戻し ----------
-  // 選んだ時点の状態の控えを、バックログの選択肢の行（k: "c"）に s として持たせる。
-  // セーブデータの最上位の形は変えない（旧版は s を無視する。旧データの行には控えが無いので「戻る」を出さない）。
-  function snapshotOf(s) {
-    return {
-      scene: s.scene,
-      affection: s.affection,
-      shards: s.shards,
-      flags: JSON.parse(JSON.stringify(s.flags)),
-      steps: s.steps
-    };
-  }
+  // 選んだ時点の状態の控え（snapshotOf。js/state.js）を、バックログの選択肢の行（k: "c"）に s として持たせる。
+  var snapshotOf = State.snapshotOf;
   function canRewindTo(index) {
     var entry = state && state.log[index];
     return !!entry && entry.k === "c" && isValidSave(entry.s);

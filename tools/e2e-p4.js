@@ -179,7 +179,7 @@ async function settle(page, ms) {
 
 // ---------- 0. 境界 ----------
 async function boundaryChecks(browser) {
-  ["game.js", "assets.js", "stage.js"].forEach(function (name) {
+  ["game.js", "assets.js", "stage.js", "state.js"].forEach(function (name) {
     var src = fs.readFileSync(path.join(ROOT, "js", name), "utf8");
     var hits = src.match(/chrono-tale|刻の女神|リーネ|rine|時の欠片|女神の心/g) || [];
     same(hits, [], "js/" + name + " に作品固有の語が無い");

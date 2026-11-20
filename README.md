@@ -77,8 +77,9 @@ assets/bgm/           … BGM の置き場所
 index.html            … 画面の骨組み（タイトル・ゲーム画面・各ダイアログ）。題名まわりの文言は作品設定から入る
 css/style.css         … 見た目（VN レイアウト、立ち絵の並べ方、演出、レスポンシブ対応）
 js/stage.js           … ページの正規化と舞台状態の計算（誰が・どのポーズ・どの表情・どの位置か。同時に最大 3 人）
+js/state.js           … 状態の計算（最初の状態・セーブの検査と復元・効果の適用・条件の解決・巻き戻し用の控え）
 js/assets.js          … 画像・立ち絵（複数枠）・光輪・BGM の管理（マニフェスト読み込み、フェード、音量）
-js/game.js            … ゲームエンジン（状態管理・文字送り・既読・セーブ・バックログ・設定）
+js/game.js            … ゲームエンジン（状態の保持と進行・文字送り・既読・セーブ・バックログ・設定）
 tools/                … 検証スクリプト（本文不変の照合、舞台状態のテスト、物語データの点検、ブラウザ自動確認、プレビュー用サーバ）
 tools/fixtures/       … 検証用のデータ（3 人表示の別作品、長編規模の生成スクリプト）。本作のデータではない
 
@@ -125,7 +126,7 @@ node tools/e2e.js && node tools/e2e-phase2.js && node tools/e2e-p3.js && node to
 
 **バージョンを上げるとき**
 
-`index.html` の `data-app-version` と 7 か所の `?v=`、`js/game.js` の `VERSION` を同じ値にそろえてください。画面部品（id）を足したときは `js/game.js` の `ELEMENT_IDS` にも加えます。そろっているかは `node tools/e2e-p3.js` が照合します。
+`index.html` の `data-app-version` と 8 か所の `?v=`、`js/game.js` の `VERSION` を同じ値にそろえてください。画面部品（id）を足したときは `js/game.js` の `ELEMENT_IDS` にも加えます。そろっているかは `node tools/e2e-p3.js` が照合します。
 
 ### 第1次アップグレードの変更点
 
