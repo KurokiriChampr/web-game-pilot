@@ -1,0 +1,118 @@
+{
+  "version": 2,
+  "basePath": "assets/",
+  "defaults": {
+    "image": null,
+    "bgm": null
+  },
+  "title": {
+    "image": "images/bg/title.webp"
+  },
+  "backgrounds": {
+    "street": {
+      "image": "images/bg/street.webp"
+    },
+    "crossing": {
+      "image": "images/bg/crossing.webp"
+    },
+    "dark": {
+      "image": "images/bg/dark.webp"
+    },
+    "infirmary": {
+      "image": "images/bg/infirmary.webp"
+    },
+    "classroom": {
+      "image": "images/bg/classroom.webp"
+    },
+    "council": {
+      "image": "images/bg/council.webp"
+    },
+    "library": {
+      "image": "images/bg/library.webp"
+    },
+    "courtyard": {
+      "image": "images/bg/courtyard.webp"
+    },
+    "corridor": {
+      "image": "images/bg/corridor.webp"
+    },
+    "festival": {
+      "image": "images/bg/festival.webp"
+    },
+    "campfire": {
+      "image": "images/bg/campfire.webp"
+    },
+    "rooftop": {
+      "image": "images/bg/rooftop.webp"
+    },
+    "archive": {
+      "image": "images/bg/archive.webp"
+    },
+    "hospital": {
+      "image": "images/bg/hospital.webp"
+    }
+  },
+  "characters": {
+    "ren": {
+      "base": "images/chara/ren/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "smile": "stand_smile.webp",
+            "sad": "stand_sad.webp"
+          }
+        }
+      }
+    },
+    "tsukasa": {
+      "base": "images/chara/tsukasa/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "smile": "stand_smile.webp",
+            "sad": "stand_sad.webp"
+          }
+        }
+      }
+    },
+    "yota": {
+      "base": "images/chara/yota/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "smile": "stand_smile.webp",
+            "sad": "stand_sad.webp"
+          }
+        }
+      }
+    },
+    "sora": {
+      "base": "images/chara/sora/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "smile": "stand_smile.webp",
+            "sad": "stand_sad.webp"
+          }
+        }
+      }
+    },
+    "haruki": {
+      "base": "images/chara/haruki/",
+      "poses": {
+        "stand": {
+          "exprs": {
+            "normal": "stand_normal.webp",
+            "smile": "stand_smile.webp",
+            "sad": "stand_sad.webp"
+          }
+        }
+      }
+    }
+  },
+  "scenes": {}
+}

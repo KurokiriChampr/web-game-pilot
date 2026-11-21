@@ -1,0 +1,17 @@
+/* =========================================================
+   作品ごとの配色。css/style.css（エンジン共通）のあとに読み込まれる。
+   - story.js の scene.theme: "xxx" が body.theme-xxx になる。使うテーマはすべてここに書く（無いと点検で注意）。
+     --bg-1〜3 は背景画像が無いときのグラデーション、--accent は強調の色。
+   ========================================================= */
+:root { --accent: #f2a7c3; }
+body.theme-title   { --bg-1: #1a1030; --bg-2: #4a2a5e; --bg-3: #c98aa8; }
+body.theme-morning { --bg-1: #3a4a6e; --bg-2: #8aa8d0; --bg-3: #f4d6c0; }
+body.theme-day     { --bg-1: #3a5a7e; --bg-2: #8ab8d8; --bg-3: #f0e6d0; }
+body.theme-evening { --bg-1: #2a1838; --bg-2: #8a4a6a; --bg-3: #f0a888; }
+body.theme-night   { --bg-1: #05061a; --bg-2: #1a1a48; --bg-3: #3b2a6a; }
+body.theme-dark    { --bg-1: #000000; --bg-2: #07070c; --bg-3: #14121e; }
+body.theme-true    { --bg-1: #0a0a20; --bg-2: #2a3a6a; --bg-3: #d8e0ff; }
+
+/* 明るいテーマでは、背景画像が無いときの星空を薄くする */
+body.theme-morning:not(.has-bg) .sky,
+body.theme-day:not(.has-bg) .sky { opacity: 0.2; }
