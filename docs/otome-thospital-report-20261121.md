@@ -2,7 +2,7 @@
 
 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 ブランチ：`bell/otome-thospital-20261121`
-PR：（作成後に追記）
+PR：[#19](https://github.com/KurokiriChampr/web-game-pilot/pull/19)
 
 ## 1. 結論
 
