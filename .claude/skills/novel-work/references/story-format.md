@@ -108,6 +108,20 @@ requires: function (s) { return s.vars.trust.aoi >= 3 && s.vars.gold >= 30; }
 - 宣言していない変数・`per` に無い人物の使用は誤り。HUD には出せない（まだ仕組みが無い）。
 - 見本：`tools/fixtures/vars/`。詳細は `docs/ENGINE.md` §4「状態変数」。
 
+## 周回をまたぐ解放（`STORY.unlocks`）
+
+```js
+unlocks: {
+  true_route: { endings: ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro"] },          // 4 つ全部に到達で
+  two_bad:    { endings: ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro"], count: 2 } // 2 つ以上で
+},
+// 次の周の新規開始で flags.true_route = true になる。参照はふつうのフラグと同じ
+requires: function (s) { return !!s.flags.true_route; }
+```
+
+- `endings` は結末のシーンの `ending.id`。効くのは新規開始だけ（つづきから・ロード・巻き戻しでは変わらない）。
+- 存在しないエンディング ID は誤り。フラグなしでは条件の結末に届かないと注意。見本：`tools/fixtures/unlock/`。詳細は `docs/ENGINE.md` §4「周回をまたぐ解放」。
+
 ## 章
 
 `works/` の作品では、**章は `story.js` の中に書く**（ファイルを分けない）。

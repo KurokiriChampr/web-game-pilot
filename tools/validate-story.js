@@ -11,12 +11,15 @@
  *   知らない項目名／manifest に無い背景・人物・ポーズ・表情／シーン ID に # や > が入っている／章の指定が登録されていない／
  *   next だけで輪になっていて抜けられない並び（A → B → A）／
  *   変数の宣言（STORY.vars）の書式の誤り／宣言されていない変数・per に無い人物の使用（effects.vars・onEnter.vars・
- *   関数の中の .vars.xxx）／変数の更新の形の誤り（数値か { set: 数値 } でない）
+ *   関数の中の .vars.xxx）／変数の更新の形の誤り（数値か { set: 数値 } でない）／
+ *   周回をまたぐ解放（STORY.unlocks）の書式の誤り・存在しないエンディング ID・同じ ID の重複・count の範囲外
  * 注意（終了コード 0）：動くが、意図どおりか確かめたいもの
  *   退場の指定なしに押し出された立ち絵（1 か所に 1 人・最大 3 人の規則による）／同じシーンに同じ本文のページ
  *   （既読の記録が共有される）／どこからも行けないシーン／結末の数と endingCount の不一致／css に無いテーマ／
  *   結末のシーンの next／全部に requires が付いた選択肢（next が無いと、全部隠れたとき進めない）／
- *   next だけの輪で、行き先の関数しだいで抜けられるもの／変数の per に、manifest にも cast にも無い人物 ID
+ *   next だけの輪で、行き先の関数しだいで抜けられるもの／変数の per に、manifest にも cast にも無い人物 ID／
+ *   解放のフラグをどの関数も読んでいない／解放のフラグを effects・onEnter でも立てている／
+ *   解放の条件のエンディングに、そのフラグが立っていない周では届かない（解放できない）
  *
  * 本文や選択肢が関数のシーンは、その関数が見ているフラグを「全部なし／全部あり／1 つずつ」で試す
  * （好感度と欠片は下限・0・上限）。組合せの全数ではないので、3 つ以上のフラグの重なりでだけ起きる問題は見つけられない。
@@ -36,6 +39,8 @@ var CHOICE_KEYS = ["text", "next", "effects", "requires"];
 var PAGE_FX = ["hop", "shake", "flash"];
 var VAR_KEYS = ["initial", "min", "max", "per"];
 var VAR_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+var UNLOCK_KEYS = ["endings", "count"];
+var FLAG_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function isObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -330,6 +335,155 @@ function checkNextLoops(scenes, linear, err, warn) {
     var list = "輪のシーン：" + members.join("・");
     if (!exits.length) err("シーン " + members[0], "next だけで輪になっていて抜けられません（" + list + "）");
     else warn("シーン " + exits.sort()[0], "next だけの輪です。行き先の関数しだいで抜けられます（" + list + "）");
+  });
+}
+
+/** 周回をまたぐ解放（STORY.unlocks）の書式を点検し、正しいものだけを [{ flag, endings, count }] で返す */
+function checkUnlockDecls(STORY, endingIds, err) {
+  var out = [];
+  if (STORY.unlocks == null) return out;
+  if (!isObject(STORY.unlocks)) {
+    err("STORY.unlocks", "解放の宣言は { フラグ名: { endings: [エンディング ID…], count } } のオブジェクトにしてください");
+    return out;
+  }
+  Object.keys(STORY.unlocks).forEach(function (flag) {
+    var at = "STORY.unlocks." + flag;
+    var u = STORY.unlocks[flag];
+    if (!FLAG_NAME.test(flag)) {
+      err(at, "フラグ名は半角英数字と _ で、先頭は英字か _ にしてください（関数から s.flags." + flag + " で読めるように）");
+      return;
+    }
+    if (!isObject(u)) {
+      err(at, "宣言がオブジェクトではありません（例：{ endings: [\"bad_a\", \"bad_b\"] }）");
+      return;
+    }
+    var bad = false;
+    Object.keys(u).forEach(function (k) {
+      if (UNLOCK_KEYS.indexOf(k) === -1) {
+        err(at, "知らない項目 " + k);
+        bad = true;
+      }
+    });
+    var list = u.endings;
+    if (!Array.isArray(list) || !list.length || !list.every(function (x) { return typeof x === "string" && x; })) {
+      err(at, "endings はエンディング ID（文字列）を 1 つ以上並べた配列にしてください");
+      return;
+    }
+    var dup = list.filter(function (x, i) {
+      return list.indexOf(x) !== i;
+    });
+    if (dup.length) {
+      err(at, "endings に同じエンディング ID が 2 回あります：" + dup.join("・"));
+      bad = true;
+    }
+    list.forEach(function (x) {
+      if (!endingIds[x]) {
+        err(at, "エンディング ID " + x + " の結末がありません（結末のシーンの ending.id と照らしてください）");
+        bad = true;
+      }
+    });
+    if (u.count != null && !(typeof u.count === "number" && Math.floor(u.count) === u.count && u.count >= 1 && u.count <= list.length)) {
+      err(at, "count は 1 から endings の数（" + list.length + "）までの整数にしてください");
+      bad = true;
+    }
+    if (!bad) out.push({ flag: flag, endings: list.slice(), count: u.count == null ? list.length : u.count });
+  });
+  return out;
+}
+
+/** フラグ flag が立っていない周で、開始シーンから届くシーン（requires も見る。試す状態はいつもの sampleStates からフラグを消したもの） */
+function reachableWithout(STORY, flag, decls) {
+  var scenes = STORY.scenes;
+  var seen = {};
+  var stack = scenes[STORY.start] ? [STORY.start] : [];
+  var call = function (fn, st) {
+    try {
+      return fn(JSON.parse(JSON.stringify(st)));
+    } catch (e) {
+      return undefined; // 例外は本来の点検で報告済み
+    }
+  };
+  while (stack.length) {
+    var id = stack.pop();
+    if (seen[id] || !scenes[id]) continue;
+    seen[id] = true;
+    var scene = scenes[id];
+    if (!isObject(scene) || scene.ending) continue;
+    var fns = [scene.next];
+    toList(scene.choices).forEach(function (c) {
+      if (c) fns.push(c.next, c.requires);
+    });
+    var flags = [];
+    var refs = [];
+    fns.forEach(function (f) {
+      if (typeof f !== "function") return;
+      flagsIn(f).forEach(function (x) {
+        if (flags.indexOf(x) === -1) flags.push(x);
+      });
+      refs = refs.concat(varsIn(f));
+    });
+    var states = sampleStates(STORY, flags, refs, decls).map(function (st) {
+      delete st.flags[flag];
+      return st;
+    });
+    var targets = [];
+    states.forEach(function (st) {
+      var shown = 0;
+      toList(scene.choices).forEach(function (c) {
+        if (!isObject(c)) return;
+        if (typeof c.requires === "function" && !call(c.requires, st)) return;
+        shown += 1;
+        targets.push(typeof c.next === "function" ? call(c.next, st) : c.next);
+      });
+      if (!shown && scene.next != null) targets.push(typeof scene.next === "function" ? call(scene.next, st) : scene.next);
+    });
+    targets.forEach(function (t) {
+      if (typeof t === "string" && !seen[t]) stack.push(t);
+    });
+  }
+  return seen;
+}
+
+/** 解放の使われ方の点検（注意）：フラグを読む関数が無い／effects・onEnter でも立てている／フラグなしで条件のエンディングに届かない */
+function checkUnlockUse(STORY, unlocks, endingIds, decls, warn) {
+  if (!unlocks.length) return;
+  var read = {};
+  var set = {};
+  Object.keys(STORY.scenes).forEach(function (id) {
+    var scene = STORY.scenes[id];
+    if (!isObject(scene)) return;
+    var fns = [scene.text, scene.next];
+    var effs = [scene.onEnter];
+    toList(scene.choices).forEach(function (c) {
+      if (!isObject(c)) return;
+      fns.push(c.next, c.requires);
+      effs.push(c.effects);
+    });
+    fns.forEach(function (f) {
+      if (typeof f === "function") flagsIn(f).forEach(function (x) {
+        read[x] = true;
+      });
+    });
+    effs.forEach(function (e) {
+      if (isObject(e) && isObject(e.flags)) Object.keys(e.flags).forEach(function (x) {
+        set[x] = (set[x] || []).concat(id);
+      });
+    });
+  });
+  unlocks.forEach(function (u) {
+    var at = "STORY.unlocks." + u.flag;
+    if (!read[u.flag]) warn(at, "フラグ " + u.flag + " を読む関数（requires・next・text）がありません（解放しても何も変わりません）");
+    if (set[u.flag]) warn(at, "フラグ " + u.flag + " を effects・onEnter でも立てています（シーン " + set[u.flag].join("・") + "）。周回の解放と、その周の中での成立が混ざります");
+    var seen = reachableWithout(STORY, u.flag, decls);
+    var reach = u.endings.filter(function (x) {
+      return seen[endingIds[x]];
+    });
+    if (reach.length < u.count) {
+      var miss = u.endings.filter(function (x) {
+        return reach.indexOf(x) === -1;
+      });
+      warn(at, "フラグ " + u.flag + " が立っていない周では、条件のエンディングのうち " + reach.length + " 個にしか届きません（必要 " + u.count + " 個。届かない：" + miss.join("・") + "）。解放できない恐れがあります");
+    }
   });
 }
 
@@ -629,6 +783,9 @@ function validate(work) {
   if (typeof STORY.endingCount === "number" && STORY.endingCount !== stats.endings) {
     warn("STORY.endingCount", STORY.endingCount + " ですが、結末のシーンは " + stats.endings + " 個あります");
   }
+  var unlocks = checkUnlockDecls(STORY, endingIds, err);
+  checkUnlockUse(STORY, unlocks, endingIds, decls, warn);
+  stats.unlocks = unlocks.length;
   stats.reachable = Object.keys(seen).length;
   return { errors: errors, warnings: warnings, stats: stats };
 }
@@ -645,6 +802,7 @@ if (require.main === module) {
     "シーン " + s.scenes + "（到達できる " + s.reachable + "）／章 " + s.chapters + "／固有のページ " + s.pages + "／本文 " + s.chars + " 字／選択肢 " + s.choices +
       "／結末 " + s.endings + "／同時に並ぶ立ち絵 最大 " + s.maxOnStage + " 人"
   );
+  if (s.unlocks) console.log("周回をまたぐ解放（STORY.unlocks）：" + s.unlocks + " 件");
   console.log("既読データの見積もり（すべて読み、すべて選んだとき）：" + s.readEntries + " 要素・約 " + Math.round(s.readBytes / 1024) + " KB");
   if (args.indexOf("--quiet") === -1) {
     result.warnings.forEach(function (w) {

@@ -19,7 +19,7 @@ ver 3.0-p4 時点。このリポジトリは「ノベルゲームのエンジン
 | ファイル | 中身 |
 | --- | --- |
 | `js/stage.js` | 舞台の計算（ページの正規化、誰がどこにいるか、話者、章） |
-| `js/state.js` | 状態の計算（最初の状態、セーブの検査と復元、effects・onEnter の適用（状態変数 `vars` を含む）、`next`・`text`・`requires` の解決、巻き戻し用の控え）。画面に触れず Node からも読める |
+| `js/state.js` | 状態の計算（最初の状態（周回をまたぐ解放 `unlocks` を含む）、セーブの検査と復元、effects・onEnter の適用（状態変数 `vars` を含む）、`next`・`text`・`requires` の解決、巻き戻し用の控え）。画面に触れず Node からも読める |
 | `js/assets.js` | 素材の読み込みと表示（背景のクロスフェード、立ち絵の枠、BGM） |
 | `js/game.js` | いまの状態の保持と進行（文字送り、ページ送り、選択肢）、既読・スキップ、オート、セーブ／ロード、バックログ・巻き戻し、設定、クイックバー、確認ダイアログ、古い画面の検出 |
 | `css/style.css` | 画面構成と部品の見た目、立ち絵の並べ方、レスポンシブ対応 |
@@ -134,6 +134,32 @@ effects: { vars: { gold: -30, trust: { aoi: 2, beni: { set: 0 } } } }
 - 点検（`tools/validate-story.js`）：宣言の書式、`effects.vars`・`onEnter.vars`・関数の中の `.vars.xxx` の未宣言の変数・`per` に無い人物、更新の形（数値か `{ set: 数値 }`）は**誤り**。`per` の人物 ID が manifest にも cast にも無いときは**注意**。関数を試すときは、見ている変数を 1 つずつ振る（初期値の前後 20 までの整数と下限・上限）。複数の変数の組合せでだけ起きる問題は見つけられない。
 - HUD への表示（設計の `WORK.hud.items`）はまだ無い。
 - 動く見本は `tools/fixtures/vars/`（`node tools/preview-server.js --work tools/fixtures/vars`）。画面の検査は `tools/e2e-p6.js`。
+
+### 周回をまたぐ解放（`STORY.unlocks`）
+
+到達したエンディングに応じて、**次の周以降の新規開始のときに**フラグを立てる。「バッドエンディングを 4 つ全部見るとトゥルーのシナリオが開く」のような使い方。
+
+```js
+var STORY = {
+  start: "...",
+  unlocks: {
+    seen_aoi:   { endings: ["bad_aoi"] },                                         // 1 つ到達で
+    two_bad:    { endings: ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro"], count: 2 }, // 4 つのうち 2 つ以上で
+    true_route: { endings: ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro"] }      // 4 つ全部で（count 省略＝全部）
+  },
+  scenes: { ... }
+};
+// 参照：立ったフラグは、ふつうのフラグと同じく s.flags で読む
+{ text: "真実の扉", next: "true_gate", requires: function (s) { return !!s.flags.true_route; } }
+```
+
+- 宣言の項目：キーがフラグ名（半角英数字と `_`、先頭は英字か `_`）、`endings`（エンディング ID＝結末のシーンの `ending.id` の配列）、`count`（何個到達で立てるか。省略＝全部）。立つ値は `true`。
+- 元データは従来のエンディングの到達記録（`<id>-endings-v1`）。**新しい保存キーは足さない**。到達記録は従来どおり結末のシーンに入った時点で書かれるので、結末に届いた直後の「もう一度はじめから」から効く。
+- 効くのは**新規開始だけ**（タイトルの「はじめから」、結末の「もう一度はじめから」、メニューの「最初から」）。「つづきから」・スロットのロード・「やり直す」「戻る」（巻き戻し）は、そのセーブ・控えのフラグのまま（解放のフラグを足しも消しもしない）。記録の消去（設定）で到達記録が消えれば、次の新規開始からは立たない。
+- **宣言しない作品（本作）では、新規開始の状態は従来と同じ**（`flags` は `{}`。セーブの形も中身も変わらない）。
+- 崩れた宣言（`endings` が配列でない・空など）は、エンジンはその 1 件だけを無視してコンソールに警告を出す（進行は止めない）。
+- 点検（`tools/validate-story.js`）：宣言の書式（オブジェクトでない・フラグ名・知らない項目・`endings` の形・重複・`count` が 1〜`endings` の数の整数でない）と、**存在しないエンディング ID** は**誤り**。そのフラグを読む関数（`requires`・`next`・`text`）が無い、同じフラグを `effects`・`onEnter` でも立てている、**そのフラグが立っていない周では条件のエンディングに `count` 個届かない**（自分の解放を条件にしてしまった、など）は**注意**。到達の判定は、関数を試すいつもの状態からそのフラグを消して、`requires` も見てたどる（試す状態の範囲での判定）。
+- 動く見本は `tools/fixtures/unlock/`（`node tools/preview-server.js --work tools/fixtures/unlock`）。画面の検査は `tools/e2e-p7.js`。
 
 ## 5. 別作品へ持ち出す手順
 

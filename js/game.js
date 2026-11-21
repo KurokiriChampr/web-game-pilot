@@ -1043,7 +1043,7 @@
   // ---------- 操作 ----------
   function startNew() {
     closeAllDialogs();
-    state = newState();
+    state = newState(seenEndings()); // 周回をまたぐ解放（STORY.unlocks）：到達済みエンディングから初期フラグを立てる
     logScene();
     renderScene();
   }
