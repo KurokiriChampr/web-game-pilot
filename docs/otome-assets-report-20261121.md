@@ -2,7 +2,7 @@
 
 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 ブランチ：`bell/otome-assets-20261121`（main `756da93` から）
-PR：#17（作成のみ・マージはしていない）
+PR：#17 https://github.com/KurokiriChampr/web-game-pilot/pull/17（作成のみ・マージはしていない）
 
 変更は `works/ano-hi-no-koe/` と本報告書だけ。エンジン（`index.html`・`js/`・`css/`・`tools/`）、本編の素材・物語、localStorage のキー体系、藤堂蓮の素材には触れていない。GPU 生成・外部サービスは使っていない。
 
