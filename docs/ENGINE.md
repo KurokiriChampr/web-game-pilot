@@ -148,3 +148,5 @@ effects: { vars: { gold: -30, trust: { aoi: 2, beni: { set: 0 } } } }
 9. **点検と確認**：`node tools/validate-story.js` で誤り 0 件にする。`node tools/preview-server.js --placeholders` で、素材が届く前でも画面を確かめられる。
 
 エンジンを差し替えずに別作品を動かす確認は、`node tools/preview-server.js --work <作品のフォルダ> --placeholders` でできる（作品のフォルダにあるファイルが優先され、無いものはこのリポジトリのものが使われる）。
+
+このリポジトリの中で新しい作品を作るときは、Claude Code のプロジェクトスキル `.claude/skills/novel-work/` を使う（作品は `works/<作品 ID>/` に、差し替えるファイルだけを置く。足場作りは `node .claude/skills/novel-work/scripts/new-work.js <作品 ID>`、公開用にまとめるのは同じフォルダの `build-work.js`）。

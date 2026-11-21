@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "basePath": "assets/",
+  "defaults": { "image": null, "bgm": null },
+  "title": { "image": "images/bg/title.webp" },
+  "backgrounds": {
+    "room": { "image": "images/bg/room.webp" },
+    "street": { "image": "images/bg/street.webp" }
+  },
+  "characters": {
+    "mio": {
+      "base": "images/chara/mio/",
+      "poses": { "stand": { "exprs": { "normal": "stand_normal.webp", "smile": "stand_smile.webp" } } }
+    }
+  },
+  "scenes": {}
+}
