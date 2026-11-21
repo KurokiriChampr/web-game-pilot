@@ -54,13 +54,13 @@
   },
   "characters": {
     "ren": {
-      "base": "images/chara/ren/",
+      "base": "chars/",
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "stand_normal.webp",
-            "smile": "stand_smile.webp",
-            "sad": "stand_sad.webp"
+            "normal": "ren_normal.png",
+            "smile": "ren_smile.png",
+            "sad": "ren_sad.png"
           }
         }
       }

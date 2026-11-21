@@ -316,5 +316,10 @@
     46
    ]
   ]
+ },
+ "_bgmode": {
+  "ren_normal": "rows",
+  "ren_smile": "rows",
+  "ren_sad": "rows"
  }
 }
