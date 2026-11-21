@@ -66,49 +66,49 @@
       }
     },
     "tsukasa": {
-      "base": "images/chara/tsukasa/",
+      "base": "chars/",
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "stand_normal.webp",
-            "smile": "stand_smile.webp",
-            "sad": "stand_sad.webp"
+            "normal": "tsukasa_normal.png",
+            "smile": "tsukasa_smile.png",
+            "sad": "tsukasa_sad.png"
           }
         }
       }
     },
     "yota": {
-      "base": "images/chara/yota/",
+      "base": "chars/",
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "stand_normal.webp",
-            "smile": "stand_smile.webp",
-            "sad": "stand_sad.webp"
+            "normal": "yota_normal.png",
+            "smile": "yota_smile.png",
+            "sad": "yota_sad.png"
           }
         }
       }
     },
     "sora": {
-      "base": "images/chara/sora/",
+      "base": "chars/",
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "stand_normal.webp",
-            "smile": "stand_smile.webp",
-            "sad": "stand_sad.webp"
+            "normal": "sora_normal.png",
+            "smile": "sora_smile.png",
+            "sad": "sora_sad.png"
           }
         }
       }
     },
     "haruki": {
-      "base": "images/chara/haruki/",
+      "base": "chars/",
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "stand_normal.webp",
-            "smile": "stand_smile.webp",
-            "sad": "stand_sad.webp"
+            "normal": "haruki_normal.png",
+            "smile": "haruki_smile.png",
+            "sad": "haruki_sad.png"
           }
         }
       }
