@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-webp-20261121`
-- PR：（作成後に追記）
+- PR：[#20](https://github.com/KurokiriChampr/web-game-pilot/pull/20)（マージはしていない）
 - 対応元：`docs/otome-assets-report-20261121.md` §4-2、`docs/otome-assets-ren-report-20261121.md` §6「ファイルの重さ」
 
 ## 1. 結果の要約
