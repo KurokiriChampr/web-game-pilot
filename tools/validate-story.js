@@ -9,15 +9,19 @@
  * 誤り（終了コード 1）：動かない・壊れる原因になるもの
  *   作品 ID が無い／開始シーンが無い／行き先の無い選択肢・next／選択肢も next も無いシーン／cast に無い話者／
  *   知らない項目名／manifest に無い背景・人物・ポーズ・表情／シーン ID に # や > が入っている／章の指定が登録されていない／
- *   next だけで輪になっていて抜けられない並び（A → B → A）
+ *   next だけで輪になっていて抜けられない並び（A → B → A）／
+ *   変数の宣言（STORY.vars）の書式の誤り／宣言されていない変数・per に無い人物の使用（effects.vars・onEnter.vars・
+ *   関数の中の .vars.xxx）／変数の更新の形の誤り（数値か { set: 数値 } でない）
  * 注意（終了コード 0）：動くが、意図どおりか確かめたいもの
  *   退場の指定なしに押し出された立ち絵（1 か所に 1 人・最大 3 人の規則による）／同じシーンに同じ本文のページ
  *   （既読の記録が共有される）／どこからも行けないシーン／結末の数と endingCount の不一致／css に無いテーマ／
  *   結末のシーンの next／全部に requires が付いた選択肢（next が無いと、全部隠れたとき進めない）／
- *   next だけの輪で、行き先の関数しだいで抜けられるもの
+ *   next だけの輪で、行き先の関数しだいで抜けられるもの／変数の per に、manifest にも cast にも無い人物 ID
  *
  * 本文や選択肢が関数のシーンは、その関数が見ているフラグを「全部なし／全部あり／1 つずつ」で試す
  * （好感度と欠片は下限・0・上限）。組合せの全数ではないので、3 つ以上のフラグの重なりでだけ起きる問題は見つけられない。
+ * 関数が見ている変数（.vars.xxx）は 1 つずつ振る（初期値の前後 20 までの整数と下限・上限。幅が 20 以下なら全部の整数。ほかの変数は初期値）。
+ * 複数の変数の組合せでだけ起きる問題は見つけられない。
  */
 "use strict";
 
@@ -30,6 +34,8 @@ var SCENE_KEYS = ["title", "icon", "theme", "text", "stage", "choices", "onEnter
 var STAGE_KEYS = ["bg", "cg", "halo", "show", "hide"];
 var CHOICE_KEYS = ["text", "next", "effects", "requires"];
 var PAGE_FX = ["hop", "shake", "flash"];
+var VAR_KEYS = ["initial", "min", "max", "per"];
+var VAR_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 function isObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -46,8 +52,170 @@ function flagsIn(fn) {
   return Object.keys(found);
 }
 
-/** 関数を試す状態の一覧（フラグ：全部なし／全部あり／1 つずつ × 好感度・欠片の下限・0・上限） */
-function sampleStates(story, flags) {
+var ID_OR_KEY = "(?:\\.([A-Za-z_$][\\w$]*)|\\[\\s*[\"']([^\"']+)[\"']\\s*\\])";
+/** 関数が見ている変数（.vars.名前 と、人物ごとの変数の .vars.名前.人物）。key は人物（書かれていなければ null） */
+function varsIn(fn) {
+  var found = {};
+  var out = [];
+  String(fn).replace(new RegExp("\\.vars" + ID_OR_KEY + "(?:" + ID_OR_KEY + ")?", "g"), function (_, a, b, c, d) {
+    var ref = { name: a || b, key: c || d || null };
+    var sig = ref.name + "." + ref.key;
+    if (!found[sig]) {
+      found[sig] = true;
+      out.push(ref);
+    }
+  });
+  return out;
+}
+
+function isNum(v) {
+  return typeof v === "number" && isFinite(v);
+}
+
+/** 変数の宣言（STORY.vars）を点検し、書式の正しいものだけを { 名前: { initial, min, max, per } } で返す */
+function checkVarDecls(STORY, cast, charas, err, warn) {
+  var decls = {};
+  if (STORY.vars == null) return decls;
+  if (!isObject(STORY.vars)) {
+    err("STORY.vars", "変数の宣言は { 変数名: { initial, min, max, per } } のオブジェクトにしてください");
+    return decls;
+  }
+  Object.keys(STORY.vars).forEach(function (name) {
+    var at = "STORY.vars." + name;
+    var d = STORY.vars[name];
+    if (!VAR_NAME.test(name) || name === "set") {
+      err(at, "変数名は半角英数字と _ で、先頭は英字にしてください（set は使えません）");
+      return;
+    }
+    if (!isObject(d)) {
+      err(at, "宣言がオブジェクトではありません（例：{ initial: 0, min: 0, max: 10 }）");
+      return;
+    }
+    var bad = false;
+    Object.keys(d).forEach(function (k) {
+      if (VAR_KEYS.indexOf(k) === -1) {
+        err(at, "知らない項目 " + k);
+        bad = true;
+      }
+    });
+    ["initial", "min", "max"].forEach(function (k) {
+      if (d[k] != null && !isNum(d[k])) {
+        err(at, k + " は数値にしてください（変数に入れられるのは数値だけです）");
+        bad = true;
+      }
+    });
+    if (bad) return;
+    var init = d.initial == null ? 0 : d.initial;
+    if (d.min != null && d.max != null && d.min > d.max) {
+      err(at, "min（" + d.min + "）が max（" + d.max + "）より大きくなっています");
+      return;
+    }
+    if ((d.min != null && init < d.min) || (d.max != null && init > d.max)) {
+      err(at, "初期値 " + init + " が min／max の範囲の外です");
+      return;
+    }
+    var per = null;
+    if (d.per != null) {
+      var okList = Array.isArray(d.per) && d.per.length && d.per.every(function (x) {
+        return typeof x === "string" && x;
+      });
+      if (!okList) {
+        err(at, "per は人物 ID（文字列）を 1 つ以上並べた配列にしてください");
+        return;
+      }
+      var dup = d.per.filter(function (x, i) {
+        return d.per.indexOf(x) !== i;
+      });
+      if (dup.length) {
+        err(at, "per に同じ人物 ID が 2 回あります：" + dup.join("・"));
+        return;
+      }
+      d.per.forEach(function (x) {
+        if (!cast[x] && !charas[x]) warn(at, "per の " + x + " は manifest の characters にも STORY.cast にもありません");
+      });
+      per = d.per.slice();
+    }
+    decls[name] = { initial: init, min: d.min == null ? null : d.min, max: d.max == null ? null : d.max, per: per };
+  });
+  return decls;
+}
+
+/** effects.vars・onEnter.vars の点検（宣言されていない変数・per に無い人物・更新の形） */
+function checkVarEffects(where, upd, decls, err) {
+  if (upd == null) return;
+  if (!isObject(upd)) {
+    err(where, "vars はオブジェクトにしてください");
+    return;
+  }
+  var isOp = function (op) {
+    return isNum(op) || (isObject(op) && Object.keys(op).length === 1 && isNum(op.set));
+  };
+  Object.keys(upd).forEach(function (name) {
+    var d = decls[name];
+    var op = upd[name];
+    if (!d) {
+      err(where, "変数 " + name + " は STORY.vars で宣言されていません");
+      return;
+    }
+    if (d.per) {
+      if (!isObject(op) || "set" in op) {
+        err(where, "人物ごとの変数 " + name + " の更新は { 人物 ID: 数値 か { set: 数値 } } の形にしてください");
+        return;
+      }
+      Object.keys(op).forEach(function (id) {
+        if (d.per.indexOf(id) === -1) err(where, "変数 " + name + " の per に人物 " + id + " がありません");
+        else if (!isOp(op[id])) err(where, "変数 " + name + "." + id + " の更新は数値（加算）か { set: 数値 }（代入）にしてください");
+      });
+    } else if (!isOp(op)) {
+      err(where, "変数 " + name + " の更新は数値（加算）か { set: 数値 }（代入）にしてください");
+    }
+  });
+}
+
+/** 関数の中の .vars.xxx が宣言どおりか（宣言に無い変数・per に無い人物は誤り） */
+function checkVarRefs(where, refs, decls, err) {
+  refs.forEach(function (r) {
+    var d = decls[r.name];
+    if (!d) err(where, "関数が読んでいる変数 " + r.name + " は STORY.vars で宣言されていません");
+    else if (d.per && r.key != null && d.per.indexOf(r.key) === -1) err(where, "関数が読んでいる " + r.name + "." + r.key + " の人物 " + r.key + " は per にありません");
+  });
+}
+
+/** 変数を振って試す値（初期値の前後 20 までの整数と、下限・上限。幅が 20 以下の変数なら全部の整数になる。制限が無い側は初期値から 20 まで） */
+function varSamples(d) {
+  var lo = d.min != null ? d.min : d.initial - 20;
+  var hi = d.max != null ? d.max : d.initial + 20;
+  var vals = [];
+  var add = function (v) {
+    if (vals.indexOf(v) === -1) vals.push(v);
+  };
+  for (var v = Math.ceil(Math.max(lo, d.initial - 20)); v <= Math.min(hi, d.initial + 20); v++) add(v);
+  [lo, d.initial, hi].forEach(add);
+  return vals.sort(function (x, y) {
+    return x - y;
+  });
+}
+
+/**
+ * 関数を試す状態の一覧（フラグ：全部なし／全部あり／1 つずつ × 好感度・欠片の下限・0・上限）。
+ * 変数を宣言した作品では、どの状態も vars を初期値で持つ。refs（関数が見ている変数）があれば、
+ * 1 つずつ varSamples の値に振った状態を足す（フラグは同じ組合せ、好感度・欠片は 0）。
+ */
+function sampleStates(story, flags, refs, decls) {
+  var initVars = null;
+  decls = decls || {};
+  if (Object.keys(decls).length) {
+    initVars = {};
+    Object.keys(decls).forEach(function (name) {
+      var d = decls[name];
+      if (d.per) {
+        initVars[name] = {};
+        d.per.forEach(function (id) {
+          initVars[name][id] = d.initial;
+        });
+      } else initVars[name] = d.initial;
+    });
+  }
   var sets = [{}, {}];
   flags.forEach(function (f) {
     sets[1][f] = true;
@@ -58,13 +226,39 @@ function sampleStates(story, flags) {
   var maxA = story.maxAffection || 0;
   var maxS = story.maxShards || 0;
   var out = [];
+  var make = function (flagSet, aff, sh, vars) {
+    var st = { scene: story.start, affection: aff, shards: sh, flags: JSON.parse(JSON.stringify(flagSet)), steps: 0, log: [] };
+    if (vars) st.vars = JSON.parse(JSON.stringify(vars));
+    return st;
+  };
   sets.forEach(function (flagSet) {
     [-5, 0, maxA + 5].forEach(function (aff) {
       [0, maxS].forEach(function (sh) {
-        out.push({ scene: story.start, affection: aff, shards: sh, flags: JSON.parse(JSON.stringify(flagSet)), steps: 0, log: [] });
+        out.push(make(flagSet, aff, sh, initVars));
       });
     });
   });
+  if (initVars) {
+    var slots = []; // 振る値の置き場所 [変数, 人物 or null]
+    (refs || []).forEach(function (r) {
+      var d = decls[r.name];
+      if (!d) return;
+      var keys = d.per ? (r.key != null ? (d.per.indexOf(r.key) !== -1 ? [r.key] : []) : d.per) : [null];
+      keys.forEach(function (k) {
+        if (!slots.some(function (x) { return x[0] === r.name && x[1] === k; })) slots.push([r.name, k]);
+      });
+    });
+    slots.forEach(function (slot) {
+      varSamples(decls[slot[0]]).forEach(function (v) {
+        sets.forEach(function (flagSet) {
+          var vars = JSON.parse(JSON.stringify(initVars));
+          if (slot[1] == null) vars[slot[0]] = v;
+          else vars[slot[0]][slot[1]] = v;
+          out.push(make(flagSet, 0, 0, vars));
+        });
+      });
+    });
+  }
   return out;
 }
 
@@ -171,6 +365,7 @@ function validate(work) {
     return c && c.id;
   });
 
+  var decls = checkVarDecls(STORY, cast, charas, err, warn);
   if (!scenes[STORY.start]) err("STORY.start", "開始シーン " + JSON.stringify(STORY.start) + " がありません");
   Object.keys(cast).forEach(function (k) {
     var c = cast[k];
@@ -237,14 +432,20 @@ function validate(work) {
       }, [])
     );
     var flags = [];
+    var refs = [];
     fns.forEach(function (f) {
       if (typeof f === "function") {
         flagsIn(f).forEach(function (x) {
           if (flags.indexOf(x) === -1) flags.push(x);
         });
+        refs = refs.concat(varsIn(f));
       }
     });
-    var states = typeof scene.text === "function" || flags.length ? sampleStates(STORY, flags) : [sampleStates(STORY, [])[0]];
+    checkVarRefs(at, varsIn(fns.filter(function (f) {
+      return typeof f === "function";
+    }).map(String).join("\n")), decls, err);
+    if (isObject(scene.onEnter)) checkVarEffects(at + " の onEnter", scene.onEnter.vars, decls, err);
+    var states = typeof scene.text === "function" || flags.length || refs.length ? sampleStates(STORY, flags, refs, decls) : [sampleStates(STORY, [], [], decls)[0]];
     var seenLists = {};
     var pageKeys = {};
     var maxPages = 0;
@@ -342,6 +543,7 @@ function validate(work) {
       Object.keys(choice).forEach(function (k) {
         if (CHOICE_KEYS.indexOf(k) === -1) err(where, "知らない項目 " + k);
       });
+      if (isObject(choice.effects)) checkVarEffects(where + " の effects", choice.effects.vars, decls, err);
       var targets = [];
       if (typeof choice.next === "string") targets.push(choice.next);
       else if (typeof choice.next === "function") {
@@ -377,10 +579,14 @@ function validate(work) {
     edges[id] = [];
     var scene = scenes[id];
     var flags = typeof scene.next === "function" ? flagsIn(scene.next) : [];
+    var refs = typeof scene.next === "function" ? varsIn(scene.next) : [];
     toList(scene.choices).forEach(function (c) {
-      if (c && typeof c.next === "function") flags = flags.concat(flagsIn(c.next));
+      if (c && typeof c.next === "function") {
+        flags = flags.concat(flagsIn(c.next));
+        refs = refs.concat(varsIn(c.next));
+      }
     });
-    var states = sampleStates(STORY, flags);
+    var states = sampleStates(STORY, flags, refs, decls);
     toList(scene.choices).forEach(function (c) {
       if (!c) return;
       if (typeof c.next === "string") edges[id].push(c.next);
@@ -427,7 +633,7 @@ function validate(work) {
   return { errors: errors, warnings: warnings, stats: stats };
 }
 
-module.exports = { validate: validate };
+module.exports = { validate: validate, varsIn: varsIn, varSamples: varSamples };
 
 if (require.main === module) {
   var args = process.argv.slice(2);

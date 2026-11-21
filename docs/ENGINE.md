@@ -19,7 +19,7 @@ ver 3.0-p4 時点。このリポジトリは「ノベルゲームのエンジン
 | ファイル | 中身 |
 | --- | --- |
 | `js/stage.js` | 舞台の計算（ページの正規化、誰がどこにいるか、話者、章） |
-| `js/state.js` | 状態の計算（最初の状態、セーブの検査と復元、effects・onEnter の適用、`next`・`text`・`requires` の解決、巻き戻し用の控え）。画面に触れず Node からも読める |
+| `js/state.js` | 状態の計算（最初の状態、セーブの検査と復元、effects・onEnter の適用（状態変数 `vars` を含む）、`next`・`text`・`requires` の解決、巻き戻し用の控え）。画面に触れず Node からも読める |
 | `js/assets.js` | 素材の読み込みと表示（背景のクロスフェード、立ち絵の枠、BGM） |
 | `js/game.js` | いまの状態の保持と進行（文字送り、ページ送り、選択肢）、既読・スキップ、オート、セーブ／ロード、バックログ・巻き戻し、設定、クイックバー、確認ダイアログ、古い画面の検出 |
 | `css/style.css` | 画面構成と部品の見た目、立ち絵の並べ方、レスポンシブ対応 |
@@ -105,6 +105,35 @@ prologue_2: { title: "駅まで", text: ["……"], next: function (s) { return 
 - セーブに足す項目は無い。送り待ちの状態は保存せず、再開はそのシーンの最初のページから。
 - 点検（`tools/validate-story.js`）：行き先の無い `next`、選択肢も `next` も無いシーン、`next` だけで抜けられない輪は**誤り**。結末の `next`、全部に `requires` が付いた選択肢（`next` なし）、関数しだいで抜けられる `next` の輪は**注意**。
 - 動く見本は `tools/fixtures/linear/`（`node tools/preview-server.js --work tools/fixtures/linear`）。
+
+### 状態変数（`STORY.vars` / `state.vars`）
+
+作品が数値の変数を宣言すると、状態とセーブの最上位に `vars` が加わる。既存の `affection`・`shards`・`flags` はそのまま（真偽・文字列はこれまでどおり `flags`）。
+
+```js
+var STORY = {
+  start: "...",
+  vars: {
+    gold:  { initial: 100, min: 0 },                                     // 作品全体で 1 つの値
+    trust: { initial: 0, min: 0, max: 10, per: ["aoi", "beni", "sui"] }  // 人物ごとの値（vars.trust.aoi）
+  },
+  scenes: { ... }
+};
+// 参照：requires・next・text の関数で s.vars を読む
+requires: function (s) { return s.vars.trust.aoi >= 3 && s.vars.gold >= 30; }
+// 更新：選択肢の effects・シーンの onEnter に vars。数値＝加算、{ set: 値 }＝代入。適用後に min／max へ収める
+effects: { vars: { gold: -30, trust: { aoi: 2, beni: { set: 0 } } } }
+```
+
+- 宣言の項目：`initial`（省略＝0）、`min`／`max`（省略＝制限なし）、`per`（人物 ID の配列。書くと人物ごとの変数）。変数名は半角英数字と `_`、先頭は英字、`set` は使えない。
+- 「人物 ID のオブジェクト」か「`{ set }`」かは、宣言に `per` があるかどうかで決まる。
+- 宣言していない変数・`per` に無い人物への更新は、エンジンは無視してコンソールに警告を出す（進行は止めない）。点検では**誤り**。
+- **変数を宣言しない作品（本作）では、状態にもセーブにも `vars` は現れない**（形も中身も従来どおり）。
+- 読み込み（`restoreState`）：`vars` の無い旧セーブは宣言の初期値で作る。セーブに無い変数・人物は初期値で補い、数値でない値は初期値、範囲外は範囲へ収め、**宣言から外れた変数・人物は落とす**。`isValidSave` の条件は変えない（`vars` を必須にしない）。
+- 巻き戻し用の控え（バックログの選択肢の行の `s`）にも `vars` の写しが入る。変数を宣言した作品では、控えに `vars` が無い（変数を足す前の）選択肢の行には「戻る」を出さない。
+- 点検（`tools/validate-story.js`）：宣言の書式、`effects.vars`・`onEnter.vars`・関数の中の `.vars.xxx` の未宣言の変数・`per` に無い人物、更新の形（数値か `{ set: 数値 }`）は**誤り**。`per` の人物 ID が manifest にも cast にも無いときは**注意**。関数を試すときは、見ている変数を 1 つずつ振る（初期値の前後 20 までの整数と下限・上限）。複数の変数の組合せでだけ起きる問題は見つけられない。
+- HUD への表示（設計の `WORK.hud.items`）はまだ無い。
+- 動く見本は `tools/fixtures/vars/`（`node tools/preview-server.js --work tools/fixtures/vars`）。画面の検査は `tools/e2e-p6.js`。
 
 ## 5. 別作品へ持ち出す手順
 
