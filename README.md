@@ -91,10 +91,10 @@ docs/ASSETS.md        … 画像・立ち絵・BGM の差し込み手順
 
 ```sh
 node tools/verify-text.js      # 本文・選択肢が基準と一致するか
-node tools/test-stage.js       # 舞台状態の単体テスト（3 人までの規則、章、物語データの点検、状態変数を含む）
+node tools/test-stage.js       # 舞台状態の単体テスト（3 人までの規則、章、物語データの点検、状態変数、周回をまたぐ解放を含む）
 node tools/validate-story.js   # 物語データの点検（行き先の無い選択肢、manifest に無い素材など）
 node tools/e2e.js && node tools/e2e-phase2.js && node tools/e2e-p3.js && node tools/e2e-p4.js   # ブラウザ自動確認
-node tools/e2e-p5.js && node tools/e2e-p6.js   # 検証用の別作品で、一本道（scene.next）と状態変数（STORY.vars）をブラウザで確認
+node tools/e2e-p5.js && node tools/e2e-p6.js && node tools/e2e-p7.js   # 検証用の別作品で、一本道（scene.next）・状態変数（STORY.vars）・周回をまたぐ解放（STORY.unlocks）をブラウザで確認
 ```
 
 シナリオを編集したい場合は `js/story.js` を変更してください。各シーンは本文・選択肢・効果（好感度／欠片／フラグ）・表示条件をデータとして持っています。

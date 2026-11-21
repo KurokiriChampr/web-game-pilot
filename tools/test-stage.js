@@ -10,6 +10,8 @@
  * - バックログ：保存される paras は文字列の配列のまま
  * - 状態変数（js/state.js の STORY.vars / state.vars）：宣言・加算・代入・範囲・人物ごと・未宣言の無視・復元時の補完・
  *   控えの写し、本作の状態に vars が現れないこと、ver 2.1／3.0-p4 の旧セーブの互換、変数の増減による分岐、変数の点検
+ * - 周回をまたぐ解放（STORY.unlocks）：到達済みエンディング → 新規開始の初期フラグ（4 つのバッドエンディングの全 16 通り）、
+ *   進行中のセーブに触れないこと、本作の newState が到達記録に依らず従来どおりなこと、宣言の点検
  */
 "use strict";
 
@@ -795,6 +797,202 @@ eq(hashedParas >= 98, true, "全シーンの固有の段落を確認した");
   var none = fresh();
   delete none.STORY.vars;
   ok(hasMsg(vs.validate(none).errors, "シーン opening の選択肢 1 の effects", "trust は STORY.vars で宣言されていません"), "宣言が無い作品で effects.vars を使うと誤り");
+})();
+
+// ---- 周回をまたぐ解放（STORY.unlocks。js/state.js）：到達済みエンディング → 新規開始の初期フラグ ----
+(function () {
+  var fs = require("fs");
+  var GameState = require(path.join(__dirname, "..", "js", "state.js"));
+  var USTORY = require(path.join(__dirname, "fixtures", "unlock", "js", "story.js"));
+  var SIX = ["affection", "flags", "log", "scene", "shards", "steps"];
+  var warned = [];
+  var quiet = function (fn) {
+    var orig = console.warn;
+    console.warn = function (m) {
+      warned.push(String(m));
+    };
+    try {
+      return fn();
+    } finally {
+      console.warn = orig;
+    }
+  };
+
+  // (1) 宣言の無い作品（本作）：到達記録を渡しても newState は従来どおり
+  ok(STORY.unlocks === undefined, "本作の STORY に unlocks は無い");
+  var own = GameState.create(STORY);
+  var plain = own.newState();
+  [["true", "normal", "bad", "another"], ["bad"], [], null, undefined, "true", [1, {}]].forEach(function (r) {
+    eq(own.newState(r), plain, "本作：到達記録 " + JSON.stringify(r) + " でも最初の状態は同じ");
+  });
+  eq([Object.keys(plain).sort(), plain.flags], [SIX, {}], "本作の最初の状態は従来の 6 項目・flags は空");
+  eq(own.unlockedFlags(["true", "normal", "bad", "another"]), [], "本作では解放されるフラグは無い");
+  // 旧セーブ（ver 2.1・3.0-p4）は従来どおり読める（restoreState は解放に触れない）
+  [["v2.1-localstorage.json", "ver 2.1"], ["3.0-p4-localstorage.json", "ver 3.0-p4"]].forEach(function (f) {
+    var dump = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", f[0]), "utf8"));
+    var auto = JSON.parse(dump["chrono-tale-save-v1"]);
+    var expect = JSON.parse(JSON.stringify(auto));
+    if (typeof expect.steps !== "number") expect.steps = 0;
+    ok(own.isValidSave(auto), f[1] + " のオートセーブは有効");
+    eq(own.restoreState(auto), expect, f[1] + " のオートセーブは、復元しても中身が変わらない（解放のフラグを足さない）");
+    var seen = JSON.parse(dump["chrono-tale-endings-v1"] || "[]");
+    eq(own.newState(seen), plain, f[1] + " の到達記録 " + JSON.stringify(seen) + " で新規開始しても従来どおり");
+  });
+
+  // (2) 宣言のある作品（tools/fixtures/unlock）：4 つのバッドエンディングの到達の全 16 通り
+  var U = GameState.create(USTORY);
+  var BADS = ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro"];
+  var ROUTES = ["アオイについていく", "ベニについていく", "スイについていく", "クロについていく"];
+  for (var mask = 0; mask < 16; mask++) {
+    var reached = BADS.filter(function (_, i) {
+      return mask & (1 << i);
+    });
+    var n = reached.length;
+    var st = U.newState(reached);
+    var want = {};
+    if (reached.indexOf("bad_aoi") !== -1) want.seen_aoi = true;
+    if (n >= 2) want.two_bad = true;
+    if (n === 4) want.true_route = true;
+    var tag = "到達 [" + reached.join(",") + "]";
+    eq(st.flags, want, tag + " → 新規開始のフラグ");
+    eq(Object.keys(st).sort(), SIX, tag + "：最上位の形は従来の 6 項目のまま");
+    var shown = GameState.visibleChoices(USTORY.scenes.opening, st).map(function (c) {
+      return c.text;
+    });
+    eq(shown, ROUTES.concat(n >= 2 ? ["見覚えのある道"] : [], n === 4 ? ["真実の扉"] : []), tag + "：フラグを条件にした選択肢が見える");
+    var text = Stage.pageTexts(GameState.resolve(USTORY.scenes.opening.text, st));
+    eq(text.length, reached.indexOf("bad_aoi") !== -1 ? 3 : 2, tag + "：本文の関数がフラグを読む");
+  }
+  // 順番・重複・宣言に無い結末・別の作品の ID は結果に影響しない
+  eq(U.newState(["bad_kuro", "x", "bad_sui", "bad_sui", "true"]).flags, { two_bad: true }, "宣言に無い ID・重複は数えない");
+  eq(U.newState(BADS.slice().reverse()).flags, U.newState(BADS).flags, "到達の順番に依らない");
+  eq(U.newState(BADS.concat(["normal", "true"])).flags, { seen_aoi: true, two_bad: true, true_route: true }, "ほかの結末が増えても同じ");
+  eq([U.newState().flags, U.newState(null).flags, U.newState("bad_aoi").flags], [{}, {}, {}], "到達記録が無い・配列でない → 何も立てない");
+  eq(U.unlockedFlags(BADS), ["seen_aoi", "two_bad", "true_route"], "解放されるフラグは宣言の順");
+  var a1 = U.newState(BADS);
+  a1.flags.true_route = false;
+  eq(U.newState(BADS).flags.true_route, true, "新しい状態は毎回独立");
+
+  // (3) 進行中の既存セーブには影響しない：1 周目のセーブ（flags 空）を、全部到達したあとに復元しても flags は空のまま
+  var run1 = U.newState([]);
+  run1.log.push({ k: "s", title: "四つの道" });
+  var saved = JSON.parse(JSON.stringify(run1));
+  eq(U.restoreState(saved).flags, {}, "既存のセーブを復元しても解放のフラグは足されない");
+  ok(U.canRewindFrom(GameState.snapshotOf(U.newState(BADS))), "解放のフラグを持った控えから戻れる");
+  eq(U.restoreState(GameState.snapshotOf(U.newState(BADS))).flags, { seen_aoi: true, two_bad: true, true_route: true }, "控えから戻すと、その周のフラグのまま");
+
+  // (4) 通しの進行（エンジンと同じ順）：到達 → 記録 → 新規開始 → 選択肢 → 結末。4 周でトゥルーが開く
+  var record = [];
+  function play(pick) {
+    var st = U.newState(record.slice());
+    var guard = 0;
+    while (!USTORY.scenes[st.scene].ending && guard++ < 10) {
+      var scene = USTORY.scenes[st.scene];
+      var next;
+      if (GameState.goesNext(scene, st)) next = GameState.resolve(scene.next, U.restoreState(st));
+      else {
+        var c = GameState.visibleChoices(scene, st).filter(function (x) {
+          return x.text === pick;
+        })[0];
+        if (!c) return { missing: pick, flags: st.flags };
+        next = GameState.resolve(c.next, st);
+      }
+      st.scene = next;
+      st.steps += 1;
+      U.applyEffects(st, USTORY.scenes[next].onEnter);
+    }
+    var id = USTORY.scenes[st.scene].ending.id;
+    if (record.indexOf(id) === -1) record.push(id);
+    return { end: id, flags: st.flags };
+  }
+  eq(play("真実の扉").missing, "真実の扉", "1 周目：真実の扉は見えない");
+  eq(play("アオイについていく").end, "bad_aoi");
+  eq(play("見覚えのある道"), { missing: "見覚えのある道", flags: { seen_aoi: true } }, "2 周目：1 つ到達では見覚えのある道は見えない");
+  eq(play("ベニについていく"), { end: "bad_beni", flags: { seen_aoi: true } });
+  eq(play("見覚えのある道"), { end: "normal", flags: { seen_aoi: true, two_bad: true } }, "3 周目：2 つ到達で見覚えのある道 → NORMAL");
+  eq(play("真実の扉").missing, "真実の扉", "4 周目：2 つではまだ真実の扉は見えない");
+  play("スイについていく");
+  eq(play("真実の扉").missing, "真実の扉", "3 つでも見えない");
+  play("クロについていく");
+  eq(play("真実の扉"), { end: "true", flags: { seen_aoi: true, two_bad: true, true_route: true } }, "4 つ全部に到達した次の周で真実の扉 → TRUE");
+  eq(Stage.pageTexts(GameState.resolve(USTORY.scenes.true_gate.text, U.newState(record)))[1], "（扉 2）すべてを覚えている。");
+
+  // (5) 宣言の崩れ：エンジンは崩れた宣言だけを無視して警告する（進行は止めない）
+  var bad = quiet(function () {
+    return GameState.create({ start: "x", scenes: {}, unlocks: { a: { endings: "e1" }, b: { endings: [] }, c: 3, d: { endings: ["e1", "e2"], count: 1 }, e: { endings: ["e1", "e2"], count: 9 } } });
+  });
+  eq(bad.unlockedFlags(["e1"]), ["d"], "崩れた宣言（a・b・c）は無視、count 1 は 1 つで解放、count が大きすぎれば全部（e）");
+  eq(bad.unlockedFlags(["e1", "e2"]), ["d", "e"]);
+  eq(warned.length, 3, "崩れた宣言ごとに警告");
+  warned = [];
+  quiet(function () {
+    eq(GameState.create({ start: "x", scenes: {}, unlocks: ["a"] }).newState(["a"]).flags, {}, "unlocks が配列なら無視");
+  });
+  eq(warned.length, 1);
+})();
+
+// ---- 解放の点検（tools/validate-story.js）：検証用の作品は誤り・注意とも 0、壊したものを誤り・注意として拾う ----
+(function () {
+  var loadWork = require(path.join(__dirname, "lib", "load-work.js")).loadWork;
+  var vs = require(path.join(__dirname, "validate-story.js"));
+  var roots = [path.join(__dirname, "fixtures", "unlock"), path.join(__dirname, "..")];
+  var fresh = function () {
+    return loadWork({ roots: roots });
+  };
+  var hasMsg = function (list, where, word) {
+    return list.some(function (m) {
+      return m.indexOf(where) === 0 && m.indexOf(word) !== -1;
+    });
+  };
+  var base = vs.validate(fresh());
+  eq([base.errors, base.warnings], [[], []], "解放を使う検証用の作品");
+  eq([base.stats.scenes, base.stats.reachable, base.stats.endings, base.stats.unlocks], [8, 8, 6, 3]);
+  eq(vs.validate(loadWork({ roots: [path.join(__dirname, "..")] })).stats.unlocks, 0, "本作の解放は 0 件");
+
+  var d = fresh();
+  d.STORY.unlocks = {
+    ok: { endings: ["bad_aoi"] },
+    typo: { endings: ["bad_aoi", "bad_ao"] },
+    dup: { endings: ["bad_aoi", "bad_aoi"] },
+    empty: { endings: [] },
+    str: { endings: "bad_aoi" },
+    cnt0: { endings: ["bad_aoi"], count: 0 },
+    cnt3: { endings: ["bad_aoi", "bad_beni"], count: 3 },
+    cntf: { endings: ["bad_aoi", "bad_beni"], count: 1.5 },
+    key: { endings: ["bad_aoi"], when: "all" },
+    num: 1,
+    "9x": { endings: ["bad_aoi"] },
+    scene: { endings: ["end_bad_aoi"] }
+  };
+  var dr = vs.validate(d);
+  [["STORY.unlocks.typo", "bad_ao の結末がありません"], ["STORY.unlocks.dup", "2 回あります"], ["STORY.unlocks.empty", "1 つ以上"], ["STORY.unlocks.str", "1 つ以上"],
+    ["STORY.unlocks.cnt0", "count は 1 から"], ["STORY.unlocks.cnt3", "count は 1 から"], ["STORY.unlocks.cntf", "count は 1 から"], ["STORY.unlocks.key", "知らない項目 when"],
+    ["STORY.unlocks.num", "オブジェクトではありません"], ["STORY.unlocks.9x", "フラグ名"], ["STORY.unlocks.scene", "end_bad_aoi の結末がありません"]].forEach(function (x) {
+    ok(hasMsg(dr.errors, x[0], x[1]), "解放の宣言の誤り：" + x[0]);
+  });
+  eq(dr.errors.length, 11, "正しい宣言（ok）は誤りにしない");
+  ok(!dr.errors.some(function (m) { return m.indexOf("STORY.unlocks.ok：") === 0; }));
+  eq(dr.warnings, ["STORY.unlocks.ok：フラグ ok を読む関数（requires・next・text）がありません（解放しても何も変わりません）"], "読まれないフラグは注意");
+  var arr = fresh();
+  arr.STORY.unlocks = [];
+  ok(hasMsg(vs.validate(arr).errors, "STORY.unlocks", "オブジェクト"), "STORY.unlocks が配列なら誤り");
+
+  // 解放できない（条件のエンディングに、そのフラグなしでは届かない）
+  var lock = fresh();
+  lock.STORY.unlocks.true_route = { endings: ["bad_aoi", "bad_beni", "bad_sui", "bad_kuro", "true"] };
+  var lr = vs.validate(lock);
+  eq(lr.errors, [], "自分の条件に自分で開く結末を入れても誤りではない");
+  ok(hasMsg(lr.warnings, "STORY.unlocks.true_route", "4 個にしか届きません（必要 5 個。届かない：true）"), "フラグなしでは届かない結末を条件にすると注意");
+  var lock2 = fresh();
+  lock2.STORY.unlocks.two_bad = { endings: ["normal", "bad_aoi"], count: 2 };
+  ok(hasMsg(vs.validate(lock2).warnings, "STORY.unlocks.two_bad", "届かない：normal"), "count 個に届かなければ注意");
+  var lock3 = fresh();
+  lock3.STORY.unlocks.two_bad = { endings: ["normal", "bad_aoi"], count: 1 };
+  eq(vs.validate(lock3).warnings, [], "count 個に届けば注意しない");
+  // その周の中でも同じフラグを立てている
+  var mix = fresh();
+  mix.STORY.scenes.opening.choices[0].effects = { flags: { true_route: true } };
+  ok(hasMsg(vs.validate(mix).warnings, "STORY.unlocks.true_route", "effects・onEnter でも立てています（シーン opening）"), "effects でも立てるフラグは注意");
 })();
 
 console.log("OK: " + checks + " 件の検査に合格（全 " + V3.length + " シーン × 4096 通り = " + replays + " 回の再生、固有の舞台状態 " + Object.keys(statesSeen).length + " 種）");

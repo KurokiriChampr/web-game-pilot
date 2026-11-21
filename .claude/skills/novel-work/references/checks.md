@@ -34,6 +34,8 @@ node tools/validate-story.js --work works/<作品ID> --quiet    # 注意を個�
 | `変数 … は STORY.vars で宣言されていません`／`per に人物 … がありません` | `vars` に宣言を足すか、綴りを直す |
 | `… の更新は数値（加算）か { set: 数値 }（代入）にしてください` | `effects.vars` の値の形を直す |
 | 変数の宣言の書式（変数名・`min`＞`max`・初期値が範囲外・`per` の形） | `story-format.md`「変数」 |
+| `STORY.unlocks.… ：エンディング ID … の結末がありません` | `ending.id` の綴り（シーン ID ではなく結末の ID） |
+| 解放の宣言の書式（フラグ名・`endings` の形・重複・`count` の範囲） | `story-format.md`「周回をまたぐ解放」 |
 
 ## 注意
 
@@ -48,5 +50,8 @@ node tools/validate-story.js --work works/<作品ID> --quiet    # 注意を個�
 | `結末のシーンに選択肢／next があります` | 使われないので消す |
 | `next だけの輪です。行き先の関数しだいで抜けられます` | 抜ける条件が必ず満たせるか |
 | `per の … は manifest にも cast にもありません` | 人物 ID の綴り |
+| `フラグ … を読む関数（requires・next・text）がありません` | 解放したフラグを `requires` などで使っているか、綴り |
+| `フラグ … を effects・onEnter でも立てています` | 周回の解放と、その周の中での成立を同じフラグにしてよいか |
+| `フラグ … が立っていない周では、条件のエンディングのうち … 個にしか届きません` | 解放の条件に、そのフラグで開く結末を入れていないか |
 | `知らない演出 fx` | `hop`／`shake`／`flash` のどれか |
 | `show に n 人います` | 同時に並ぶのは 3 人まで |

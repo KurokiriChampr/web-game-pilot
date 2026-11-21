@@ -13,16 +13,22 @@
  * - goesNext(scene, s)         : シーンの最後に next へ進むか（見える選択肢があれば選択肢が優先）
  * - snapshotOf(s)              : 巻き戻し用の控え（log を含まない写し。flags と vars は複製。vars は状態にあるときだけ）
  * 物語データを使うもの（create(STORY) が返す。STORY は呼ばれた時点のものを読む）：
- * - newState()                 : 最初の状態
+ * - newState(reached)          : 最初の状態（reached は到達済みエンディング ID の配列。STORY.unlocks の宣言どおりにフラグを立てる）
  * - isValidSave(s)             : セーブデータとして再開できるか
  * - restoreState(saved)        : セーブデータを複製し、旧バージョンに無い項目を補う
  * - applyEffects(s, effects)   : 選択肢の effects・シーンの onEnter を状態に反映する
  * - canRewindFrom(snapshot)    : 巻き戻し用の控えから再開できるか（変数を宣言した作品では、vars の無い旧い控えは不可）
  * - hasVars                    : 作品が変数を 1 つ以上宣言しているか
+ * - unlockedFlags(reached)     : 到達済みエンディングから、次の周で立てるフラグの一覧（STORY.unlocks の宣言順）
  *
  * 変数の宣言（STORY.vars）：{ 変数名: { initial, min, max, per } }。initial は省略＝0、min／max は省略＝制限なし、
  * per は人物 ID の配列（書くと人物ごとの変数）。effects.vars の数値は加算、{ set: 値 } は代入。適用後に min／max へ収める。
  * 宣言の無い変数・per に無い人物への更新は無視してコンソールに警告を出す（進行は止めない）。
+ *
+ * 周回をまたぐ解放（STORY.unlocks）：{ フラグ名: { endings: [エンディング ID…], count } }。
+ * 新規開始のとき、endings のうち count 個（省略＝全部）に到達済みなら flags[フラグ名] = true で始める。
+ * 到達の記録そのもの（<作品 ID>-endings-v1）は js/game.js が読み、ID の配列として newState に渡す。
+ * 進行中のセーブ（restoreState）には触れない。宣言の無い作品では newState は従来と同じ形・同じ中身を返す。
  */
 (function (root) {
   "use strict";
@@ -88,11 +94,51 @@
     return v;
   }
 
+  /** STORY.unlocks を読みやすい形にそろえる（[{ flag, endings, count }]。形の崩れた宣言は落として警告） */
+  function readUnlocks(STORY) {
+    var out = [];
+    var src = STORY && STORY.unlocks;
+    if (src == null) return out;
+    if (!isPlainObject(src)) {
+      warn("STORY.unlocks はオブジェクトにしてください（宣言を無視しました）");
+      return out;
+    }
+    Object.keys(src).forEach(function (flag) {
+      var u = src[flag];
+      var list = isPlainObject(u) && Array.isArray(u.endings) ? u.endings.filter(function (id) {
+        return typeof id === "string" && id;
+      }) : [];
+      if (!list.length) {
+        warn("STORY.unlocks." + flag + " の endings はエンディング ID の配列にしてください（宣言を無視しました）");
+        return;
+      }
+      var count = isNum(u.count) ? Math.max(1, Math.min(list.length, Math.floor(u.count))) : list.length;
+      out.push({ flag: flag, endings: list, count: count });
+    });
+    return out;
+  }
+
   /** 物語データ STORY に結びついた計算をまとめて返す */
   function create(STORY) {
     var decls = readDecls(STORY);
     var names = Object.keys(decls);
     var hasVars = names.length > 0;
+    var unlocks = readUnlocks(STORY);
+
+    /** 到達済みエンディング（ID の配列）から、次の周で立てるフラグの一覧 */
+    function unlockedFlags(reached) {
+      var seen = Array.isArray(reached) ? reached : [];
+      return unlocks
+        .filter(function (u) {
+          var hit = u.endings.filter(function (id) {
+            return seen.indexOf(id) !== -1;
+          }).length;
+          return hit >= u.count;
+        })
+        .map(function (u) {
+          return u.flag;
+        });
+    }
 
     /** 宣言の初期値（範囲へ収めた値）で vars を作る */
     function initialVars() {
@@ -128,9 +174,12 @@
       return vars;
     }
 
-    function newState() {
+    function newState(reached) {
       var s = { scene: STORY.start, affection: 0, shards: 0, flags: {}, steps: 0, log: [] };
       if (hasVars) s.vars = initialVars();
+      unlockedFlags(reached).forEach(function (flag) {
+        s.flags[flag] = true; // 宣言の無い作品・条件を満たさないときは何も足さない（flags は {} のまま）
+      });
       return s;
     }
 
@@ -223,6 +272,7 @@
       applyEffects: applyEffects,
       canRewindFrom: canRewindFrom,
       hasVars: hasVars,
+      unlockedFlags: unlockedFlags,
       resolve: resolve,
       visibleChoices: visibleChoices,
       goesNext: goesNext,
