@@ -58,9 +58,9 @@
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "ren_normal.png",
-            "smile": "ren_smile.png",
-            "sad": "ren_sad.png"
+            "normal": "ren_normal.webp",
+            "smile": "ren_smile.webp",
+            "sad": "ren_sad.webp"
           }
         }
       }
@@ -70,9 +70,9 @@
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "tsukasa_normal.png",
-            "smile": "tsukasa_smile.png",
-            "sad": "tsukasa_sad.png"
+            "normal": "tsukasa_normal.webp",
+            "smile": "tsukasa_smile.webp",
+            "sad": "tsukasa_sad.webp"
           }
         }
       }
@@ -82,9 +82,9 @@
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "yota_normal.png",
-            "smile": "yota_smile.png",
-            "sad": "yota_sad.png"
+            "normal": "yota_normal.webp",
+            "smile": "yota_smile.webp",
+            "sad": "yota_sad.webp"
           }
         }
       }
@@ -94,9 +94,9 @@
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "sora_normal.png",
-            "smile": "sora_smile.png",
-            "sad": "sora_sad.png"
+            "normal": "sora_normal.webp",
+            "smile": "sora_smile.webp",
+            "sad": "sora_sad.webp"
           }
         }
       }
@@ -106,9 +106,9 @@
       "poses": {
         "stand": {
           "exprs": {
-            "normal": "haruki_normal.png",
-            "smile": "haruki_smile.png",
-            "sad": "haruki_sad.png"
+            "normal": "haruki_normal.webp",
+            "smile": "haruki_smile.webp",
+            "sad": "haruki_sad.webp"
           }
         }
       }
