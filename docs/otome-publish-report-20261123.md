@@ -2,7 +2,7 @@
 
 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 ブランチ：`bell/otome-publish-20261123`
-PR：#PR_NUMBER（マージはしていません）
+PR：#27（https://github.com/KurokiriChampr/web-game-pilot/pull/27）（マージはしていません）
 想定 URL：https://kurokirichampr.github.io/web-game-pilot/ano-hi-no-koe/
 
 ## 1. やったこと
