@@ -48,6 +48,18 @@
     "crossing_evening": {
       "image": "images/bg/crossing_evening.webp"
     },
+    "rooftop_evening": {
+      "image": "images/bg/rooftop_evening.webp"
+    },
+    "courtyard_night": {
+      "image": "images/bg/courtyard_night.webp"
+    },
+    "library_evening": {
+      "image": "images/bg/library_evening.webp"
+    },
+    "crossing_night": {
+      "image": "images/bg/crossing_night.webp"
+    },
     "festival": {
       "image": "images/bg/festival.webp"
     },

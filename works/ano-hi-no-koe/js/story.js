@@ -276,7 +276,7 @@
       chapter: "common",
       icon: "◇",
       theme: "evening",
-      stage: { bg: "library", hide: "*" },
+      stage: { bg: "library_evening", hide: "*" },
       text: [
         "古い新聞なら図書室にある、と聞いて、私は旧校舎の図書室へ向かった。",
         "西日の差す閲覧席に、三年生の先輩がひとり座っていた。",
@@ -674,7 +674,7 @@
   route(scenes, "tsukasa", {
     title1: "閉館後の図書室",
     theme1: "evening",
-    bg1: "library",
+    bg1: "library_evening",
     text1: function (g) {
       return [
         "後夜祭の喧騒が嘘みたいに、旧校舎は静かだった。",
@@ -754,7 +754,7 @@
   route(scenes, "yota", {
     title1: "中庭のベンチ",
     theme1: "night",
-    bg1: "courtyard",
+    bg1: "courtyard_night",
     text1: function (g) {
       return [
         "中庭のベンチで、陽太くんは屋台の残りのりんご飴を二本持って待っていた。",
@@ -769,7 +769,7 @@
     choice1: ["「明日も来るね」と笑う", "「考えておく」とはぐらかす"],
     title2: "噴水の前",
     theme2: "night",
-    bg2: "courtyard",
+    bg2: "courtyard_night",
     text2: function () {
       return [
         { text: "りんご飴を食べ終えたころ、陽太くんが急に黙った。", chara: "yota", expr: "sad" },
@@ -849,7 +849,7 @@
     choice1: ["「手伝わせて」と署名用紙を受け取る", "「空くんって意外と真面目だね」とからかう"],
     title2: "夜の帰り道",
     theme2: "night",
-    bg2: "crossing",
+    bg2: "crossing_night",
     text2: function () {
       return [
         "帰り道、空くんは遠回りして、あの交差点の前で立ち止まった。",
