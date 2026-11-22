@@ -313,7 +313,7 @@
       chapter: "common",
       icon: "◇",
       theme: "evening",
-      stage: { bg: "corridor", hide: "*" },
+      stage: { bg: "corridor_evening", hide: "*" },
       text: [
         "四人と知り合って、一週間が過ぎた。",
         "助けてくれた人は、まだ見つからない。名乗り出る人もいないし、事故の届けも出ていなかった。",
@@ -834,7 +834,7 @@
   route(scenes, "sora", {
     title1: "放課後の教室",
     theme1: "evening",
-    bg1: "classroom",
+    bg1: "classroom_evening",
     text1: function (g) {
       return [
         "二年B組の教室に、空くんはひとりで残っていた。",
