@@ -17,9 +17,11 @@ body.theme-morning:not(.has-bg) .sky,
 body.theme-day:not(.has-bg) .sky { opacity: 0.2; }
 
 /* ---------- タイトル絵（題字入り） ----------
-   title.webp には「Heart Refrain ～あの日の声～」の題字が描かれている。
+   title.webp（横長 1024×576）と title-portrait.webp（縦長 768×1024）には「Heart Refrain ～あの日の声～」の題字が描かれている。
    - 絵が出ている間（has-bg）は文字のロゴ（小見出し・題名）を見た目だけ隠す（読み上げには残す）。絵が無いときは従来どおり文字で出る。
-   - 縦長の画面では cover だと横幅の中央しか見えず題字が切れるので、横幅いっぱいに合わせて上端に置く。 */
+   - 縦画面では縦長の絵に差し替えて全面（cover）に出す。エンジン（js/assets.js）は manifest の画像を 1 枚しか扱わず、
+     背景レイヤーに style 属性で横長の絵を入れるので、ここでは !important でそれを上書きする。
+     has-bg は横長の絵の読み込み成功で付くため、縦長の絵だけ欠けた場合はテーマの色が見える（文字のロゴは隠れたまま）。 */
 body.theme-title.has-bg .title-sub,
 body.theme-title.has-bg .title-main {
   position: absolute;
@@ -34,13 +36,14 @@ body.theme-title.has-bg .title-main {
 }
 @media (orientation: portrait) {
   body.theme-title .bg-img {
-    background-size: 100% auto;
+    background-image: url("../assets/images/bg/title-portrait.webp") !important;
+    background-size: cover;
     background-position: center top;
   }
 }
-/* 縦画面のレイアウト（css/style.css の同じ条件）では、絵を紋章の下に置き、紹介文を絵の下へ送る。
-   絵の高さは横幅の 56.25%（1024×576） */
+/* 縦画面のレイアウト（css/style.css の同じ条件）では、縦長の絵は画面の高さに合わせて出るので、
+   題字（「～あの日の声～」まで）は高さの上 36% ほどに来る。紹介文をその下へ送って題字に重ねない。
+   78px は上の余白 14px と紋章 64px（css/style.css と同じ値） */
 @media (orientation: portrait) and (max-width: 899px) {
-  body.theme-title .bg-img { background-position: center calc(14px + var(--safe-t, 0px) + 64px + 6px); }
-  body.theme-title.has-bg .title-lead { margin-top: calc(56.25vw + 12px); }
+  body.theme-title.has-bg .title-lead { margin-top: max(10px, calc(38dvh - 78px - var(--safe-t, 0px))); }
 }
