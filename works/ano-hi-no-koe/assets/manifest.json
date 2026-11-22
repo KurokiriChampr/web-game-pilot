@@ -36,6 +36,15 @@
     "corridor": {
       "image": "images/bg/corridor.webp"
     },
+    "classroom_evening": {
+      "image": "images/bg/classroom_evening.webp"
+    },
+    "corridor_evening": {
+      "image": "images/bg/corridor_evening.webp"
+    },
+    "courtyard_evening": {
+      "image": "images/bg/courtyard_evening.webp"
+    },
     "festival": {
       "image": "images/bg/festival.webp"
     },
