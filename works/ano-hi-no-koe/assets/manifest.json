@@ -60,6 +60,21 @@
     "crossing_night": {
       "image": "images/bg/crossing_night.webp"
     },
+    "infirmary_evening": {
+      "image": "images/bg/infirmary_evening.webp"
+    },
+    "archive_night": {
+      "image": "images/bg/archive_night.webp"
+    },
+    "hospital_evening": {
+      "image": "images/bg/hospital_evening.webp"
+    },
+    "rooftop_night": {
+      "image": "images/bg/rooftop_night.webp"
+    },
+    "council_evening": {
+      "image": "images/bg/council_evening.webp"
+    },
     "festival": {
       "image": "images/bg/festival.webp"
     },
