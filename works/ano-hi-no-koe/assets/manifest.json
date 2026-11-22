@@ -45,6 +45,9 @@
     "courtyard_evening": {
       "image": "images/bg/courtyard_evening.webp"
     },
+    "crossing_evening": {
+      "image": "images/bg/crossing_evening.webp"
+    },
     "festival": {
       "image": "images/bg/festival.webp"
     },
