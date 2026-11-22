@@ -1,0 +1,327 @@
+/*
+ * 舞台の状態（ページの正規化と、立ち絵・名前札・光輪の状態計算）
+ * ------------------------------------------------------------
+ * scene.text の要素は「文字列」または「{ text, speaker, chara, pose, expr, pos,
+ * show, hide, bg, cg, halo, fx }」のどちらでもよい（docs/v3-phase0-research.md §A-3）。
+ * 持ち越すもの：立ち絵（pose / expr / pos）・背景 bg・光輪 halo（明示されるまで続く。既定は weak）。
+ * 立ち絵は同時に最大 3 人（左／中央／右に 1 人ずつ）。規則は applyOne の説明を参照。
+ * そのページだけのもの：話者 speaker と演出 fx（"hop" / "shake" / "flash"）。
+ * ここでは DOM に触らず、データだけを扱う（Node からも読めるので検証スクリプトと共用する）。
+ *
+ * - normalizePage / normalizePages : 文字列を { text } に包み、形をそろえる
+ * - pageTexts                      : 表示される本文（文字列）だけを取り出す
+ * - stageAt(pages, index, opts)    : 0 ページ目から index まで畳み込み、
+ *                                    「いま誰が・どのポーズ・どの表情・どの位置にいるか」を返す純関数。
+ *                                    1 ページずつ進めても、スキップやロードで飛んでも同じ結果になる。
+ */
+(function (root) {
+  "use strict";
+
+  var POSITIONS = ["left", "center", "right"];
+  // weak＝弱い明滅（既定）／flicker＝不規則な瞬き／strong＝明るく強い発光／off＝非表示。bright は strong の旧名（Phase 1）
+  var HALO_STATES = ["weak", "flicker", "strong", "bright", "off"];
+  var DEFAULT_POSE = "stand";
+  var DEFAULT_EXPR = "normal";
+  var DEFAULT_POS = "center";
+  var FILL_ORDER = ["center", "left", "right"]; // pos を省いて登場した人が立つ位置の優先順
+  var DEFAULT_HALO = "weak";
+
+  function isObject(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+  }
+
+  function toList(v) {
+    if (v == null) return [];
+    return Array.isArray(v) ? v : [v];
+  }
+
+  /** 文字列でもオブジェクトでも { text, ... } にそろえる。本文の文字列には手を加えない。 */
+  function normalizePage(p) {
+    if (typeof p === "string") return { text: p };
+    if (!isObject(p)) return { text: p == null ? "" : String(p) };
+    var out = {};
+    Object.keys(p).forEach(function (k) {
+      out[k] = p[k];
+    });
+    out.text = typeof p.text === "string" ? p.text : p.text == null ? "" : String(p.text);
+    // 指示書側の呼び名 portraits は show の別名として受ける
+    if (out.show == null && out.portraits != null) out.show = out.portraits;
+    return out;
+  }
+
+  function normalizePages(pages) {
+    return toList(pages).map(normalizePage);
+  }
+
+  /** 表示される本文だけ（バックログ・検証はこの文字列配列を使う） */
+  function pageTexts(pages) {
+    return toList(pages).map(function (p) {
+      return typeof p === "string" ? p : normalizePage(p).text;
+    });
+  }
+
+  /** そのシーンが新形式（舞台指定つき）かどうか。false なら v2.1 と同じ見た目で動かす。 */
+  function usesStage(scene, pages) {
+    if (scene && isObject(scene.stage)) return true;
+    return toList(pages).some(function (p) {
+      return isObject(p);
+    });
+  }
+
+  /** 話者 ID → 立ち絵の人物 ID（cast[x].chara。無ければ話者 ID 自身が人物かどうかは呼び出し側が判断） */
+  function charaOfSpeaker(cast, speaker) {
+    if (!speaker) return null;
+    var c = cast && cast[speaker];
+    if (isObject(c) && typeof c.chara === "string") return c.chara;
+    if (isObject(c) && Array.isArray(c.charas)) return null; // 複数人の話者（「二人」など）は 1 人に決められない
+    return speaker;
+  }
+
+  /** 話者 ID → 立ち絵の人物 ID の一覧。cast[x].charas（配列）があれば複数人が同時に話者になる（「二人」「全員」など） */
+  function charasOfSpeaker(cast, speaker) {
+    if (!speaker) return [];
+    var c = cast && cast[speaker];
+    if (isObject(c) && Array.isArray(c.charas)) {
+      return c.charas.filter(function (x) {
+        return typeof x === "string" && x;
+      });
+    }
+    var one = charaOfSpeaker(cast, speaker);
+    return one ? [one] : [];
+  }
+
+  /** 空いている位置（中央 → 左 → 右の順）。全部ふさがっていれば null */
+  function freePosition(charas, order) {
+    var used = {};
+    order.forEach(function (id) {
+      used[charas[id].pos] = true;
+    });
+    for (var i = 0; i < FILL_ORDER.length; i++) {
+      if (!used[FILL_ORDER[i]]) return FILL_ORDER[i];
+    }
+    return null;
+  }
+
+  /**
+   * 立ち絵 1 人ぶんの指定を舞台に反映する。
+   * 位置は 1 か所に 1 人まで（左／中央／右の 3 か所なので、同時に並ぶのは最大 3 人）。
+   *   - 新しく出る人で pos の指定が無いとき：空いている位置（中央 → 左 → 右）に立つ。空きが無ければ中央
+   *   - 指定した（または決まった）位置に別の人がいるとき：先にいた人が退場する
+   * 1 人しか出ないシーンでは従来とまったく同じ結果になる（pos 省略＝中央）。
+   */
+  function applyOne(charas, order, spec) {
+    if (!isObject(spec) || typeof spec.chara !== "string" || !spec.chara) return;
+    var id = spec.chara;
+    var cur = charas[id];
+    var wantPos = POSITIONS.indexOf(spec.pos) !== -1 ? spec.pos : null;
+    var moved = false;
+    if (!cur) {
+      cur = charas[id] = { id: id, pose: DEFAULT_POSE, expr: DEFAULT_EXPR, pos: wantPos || freePosition(charas, order) || DEFAULT_POS };
+      order.push(id);
+      moved = true;
+    } else if (wantPos && wantPos !== cur.pos) {
+      cur.pos = wantPos;
+      moved = true;
+    }
+    if (typeof spec.pose === "string" && spec.pose) cur.pose = spec.pose;
+    if (typeof spec.expr === "string" && spec.expr) cur.expr = spec.expr;
+    if (moved) {
+      order.slice().forEach(function (other) {
+        if (other !== id && charas[other].pos === cur.pos) {
+          delete charas[other];
+          order.splice(order.indexOf(other), 1);
+        }
+      });
+    }
+  }
+
+  function applyHide(charas, order, hide) {
+    toList(hide).forEach(function (id) {
+      if (id === "*") {
+        order.slice().forEach(function (x) {
+          delete charas[x];
+        });
+        order.length = 0;
+      } else if (charas[id]) {
+        delete charas[id];
+        order.splice(order.indexOf(id), 1);
+      }
+    });
+  }
+
+  function applyCommon(st, spec) {
+    if (typeof spec.bg === "string" || spec.bg === null) st.bg = spec.bg;
+    if (typeof spec.cg === "string" || spec.cg === null) st.cg = spec.cg;
+    if (HALO_STATES.indexOf(spec.halo) !== -1) st.halo = spec.halo;
+    applyHide(st._charas, st._order, spec.hide);
+    toList(spec.show).forEach(function (one) {
+      applyOne(st._charas, st._order, one);
+    });
+  }
+
+  /**
+   * pages: 正規化前でも後でもよい。index: 0 始まりのページ位置。
+   *   index < 0 は「シーン開始位置」（scene.stage だけを適用した状態）。
+   * opts: { stage: scene.stage, cast: STORY.cast }
+   * 戻り値: { bg, cg, halo, charas: [{ id, pose, expr, pos }], speaker, speakerChara, speakerCharas: [], fx: [] }
+   *   charas は最大 3 人（位置は重ならない）。speakerCharas は「いま話していて、舞台にいる人」（speakerChara はその先頭）
+   */
+  function stageAt(pages, index, opts) {
+    opts = opts || {};
+    var cast = opts.cast || {};
+    var list = normalizePages(pages);
+    var st = { bg: null, cg: null, halo: DEFAULT_HALO, _charas: {}, _order: [] };
+    var speaker = null;
+    var fx = [];
+
+    if (isObject(opts.stage)) applyCommon(st, opts.stage);
+
+    var last = Math.min(typeof index === "number" ? index : -1, list.length - 1);
+    for (var i = 0; i <= last; i++) {
+      var p = list[i];
+      applyCommon(st, p);
+
+      // 1 人ぶんの省略記法。chara が無ければ話者の立ち絵、それも無ければ舞台に 1 人だけのときその人に適用
+      var hasShort = p.chara != null || p.pose != null || p.expr != null || p.pos != null;
+      if (hasShort) {
+        var target = typeof p.chara === "string" ? p.chara : null;
+        if (!target && p.speaker) target = charaOfSpeaker(cast, p.speaker);
+        if (!target && st._order.length === 1) target = st._order[0];
+        if (target) applyOne(st._charas, st._order, { chara: target, pose: p.pose, expr: p.expr, pos: p.pos });
+      }
+
+      if (i === last) {
+        speaker = typeof p.speaker === "string" && p.speaker ? p.speaker : null;
+        fx = toList(p.fx).filter(function (x) {
+          return typeof x === "string" && x;
+        });
+      }
+    }
+
+    // 舞台にいる話者だけを数える（舞台にいない人の声では、誰も強調も減光もしない）
+    var speakerCharas = charasOfSpeaker(cast, speaker).filter(function (id) {
+      return !!st._charas[id];
+    });
+    var speakerChara = speakerCharas.length ? speakerCharas[0] : null;
+
+    return {
+      bg: st.bg,
+      cg: st.cg,
+      halo: st.halo,
+      charas: st._order.map(function (id) {
+        var c = st._charas[id];
+        return { id: c.id, pose: c.pose, expr: c.expr, pos: c.pos };
+      }),
+      speaker: speaker,
+      speakerChara: speakerChara,
+      speakerCharas: speakerCharas,
+      fx: fx
+    };
+  }
+
+  /** シーン内で使う立ち絵の組（先読み用）。重複は除く。 */
+  function charasUsed(pages, opts) {
+    var list = normalizePages(pages);
+    var seen = {};
+    var out = [];
+    for (var i = -1; i < list.length; i++) {
+      stageAt(list, i, opts).charas.forEach(function (c) {
+        var key = c.id + "/" + c.pose + "/" + c.expr;
+        if (!seen[key]) {
+          seen[key] = true;
+          out.push({ id: c.id, pose: c.pose, expr: c.expr });
+        }
+      });
+    }
+    return out;
+  }
+
+  /** シーン内で使う背景の論理名（先読み用）。scene.stage の bg と、段落の bg / cg。重複は除く。 */
+  function bgsUsed(pages, opts) {
+    var list = normalizePages(pages);
+    var seen = {};
+    var out = [];
+    for (var i = -1; i < list.length; i++) {
+      var st = stageAt(list, i, opts);
+      [st.cg, st.bg].forEach(function (name) {
+        if (typeof name === "string" && name && !seen[name]) {
+          seen[name] = true;
+          out.push(name);
+        }
+      });
+    }
+    return out;
+  }
+
+  /**
+   * 本文の短い指紋（FNV-1a 32bit を 36 進で）。既読の記録に「シーン ID＋本文の指紋」として使う。
+   * 本文そのものは保存しない。同じ文字列なら必ず同じ値になる（周回・端末をまたいで不変）。
+   */
+  function hashText(text) {
+    var str = typeof text === "string" ? text : String(text == null ? "" : text);
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(36);
+  }
+
+  // ---------- 章（長編向け。使わない作品では何も起きない） ----------
+  /**
+   * 章を物語データに足す。章ごとにファイルを分けて <script> で順に読み込むための入口。
+   *   GameStage.addChapter(STORY, { id: "ch02", title: "第二章　潮騒", scenes: { シーンID: {...}, ... } })
+   * story.chapters に { id, title } を登録し、scenes を story.scenes へ足す（各シーンに chapter: id を付ける）。
+   * 同じ id で 2 回呼ぶと、シーンを同じ章に追加する（1 つの章を複数ファイルに分けてもよい）。
+   */
+  function addChapter(story, def) {
+    if (!isObject(story) || !isObject(def) || typeof def.id !== "string" || !def.id) return story;
+    if (!Array.isArray(story.chapters)) story.chapters = [];
+    if (!isObject(story.scenes)) story.scenes = {};
+    var known = story.chapters.some(function (c) {
+      return isObject(c) && c.id === def.id;
+    });
+    if (!known) story.chapters.push({ id: def.id, title: typeof def.title === "string" ? def.title : "" });
+    var scenes = isObject(def.scenes) ? def.scenes : {};
+    Object.keys(scenes).forEach(function (sceneId) {
+      var scene = scenes[sceneId];
+      if (!isObject(scene)) return;
+      if (scene.chapter == null) scene.chapter = def.id;
+      story.scenes[sceneId] = scene;
+    });
+    return story;
+  }
+
+  /** シーンの属する章 { id, title, index }。章を使わない作品・章の無いシーンでは null */
+  function chapterOf(story, sceneId) {
+    var scene = isObject(story) && isObject(story.scenes) ? story.scenes[sceneId] : null;
+    if (!isObject(scene) || typeof scene.chapter !== "string" || !Array.isArray(story.chapters)) return null;
+    for (var i = 0; i < story.chapters.length; i++) {
+      var c = story.chapters[i];
+      if (isObject(c) && c.id === scene.chapter) return { id: c.id, title: typeof c.title === "string" ? c.title : "", index: i };
+    }
+    return null;
+  }
+
+  var api = {
+    POSITIONS: POSITIONS,
+    MAX_CHARAS: POSITIONS.length,
+    addChapter: addChapter,
+    chapterOf: chapterOf,
+    hashText: hashText,
+    HALO_STATES: HALO_STATES,
+    normalizePage: normalizePage,
+    normalizePages: normalizePages,
+    pageTexts: pageTexts,
+    usesStage: usesStage,
+    stageAt: stageAt,
+    charasUsed: charasUsed,
+    bgsUsed: bgsUsed
+  };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  } else {
+    root.GameStage = api;
+  }
+})(this);

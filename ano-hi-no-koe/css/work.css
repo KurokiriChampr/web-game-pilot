@@ -1,0 +1,49 @@
+/* =========================================================
+   作品ごとの配色。css/style.css（エンジン共通）のあとに読み込まれる。
+   - story.js の scene.theme: "xxx" が body.theme-xxx になる。使うテーマはすべてここに書く（無いと点検で注意）。
+     --bg-1〜3 は背景画像が無いときのグラデーション、--accent は強調の色。
+   ========================================================= */
+:root { --accent: #f2a7c3; }
+body.theme-title   { --bg-1: #1a1030; --bg-2: #4a2a5e; --bg-3: #c98aa8; }
+body.theme-morning { --bg-1: #3a4a6e; --bg-2: #8aa8d0; --bg-3: #f4d6c0; }
+body.theme-day     { --bg-1: #3a5a7e; --bg-2: #8ab8d8; --bg-3: #f0e6d0; }
+body.theme-evening { --bg-1: #2a1838; --bg-2: #8a4a6a; --bg-3: #f0a888; }
+body.theme-night   { --bg-1: #05061a; --bg-2: #1a1a48; --bg-3: #3b2a6a; }
+body.theme-dark    { --bg-1: #000000; --bg-2: #07070c; --bg-3: #14121e; }
+body.theme-true    { --bg-1: #0a0a20; --bg-2: #2a3a6a; --bg-3: #d8e0ff; }
+
+/* 明るいテーマでは、背景画像が無いときの星空を薄くする */
+body.theme-morning:not(.has-bg) .sky,
+body.theme-day:not(.has-bg) .sky { opacity: 0.2; }
+
+/* ---------- タイトル絵（題字入り） ----------
+   title.webp（横長 1024×576）と title-portrait.webp（縦長 768×1024）には「Heart Refrain ～あの日の声～」の題字が描かれている。
+   - 絵が出ている間（has-bg）は文字のロゴ（小見出し・題名）を見た目だけ隠す（読み上げには残す）。絵が無いときは従来どおり文字で出る。
+   - 縦画面では縦長の絵に差し替えて全面（cover）に出す。エンジン（js/assets.js）は manifest の画像を 1 枚しか扱わず、
+     背景レイヤーに style 属性で横長の絵を入れるので、ここでは !important でそれを上書きする。
+     has-bg は横長の絵の読み込み成功で付くため、縦長の絵だけ欠けた場合はテーマの色が見える（文字のロゴは隠れたまま）。 */
+body.theme-title.has-bg .title-sub,
+body.theme-title.has-bg .title-main {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (orientation: portrait) {
+  body.theme-title .bg-img {
+    background-image: url("../assets/images/bg/title-portrait.webp") !important;
+    background-size: cover;
+    background-position: center top;
+  }
+}
+/* 縦画面のレイアウト（css/style.css の同じ条件）では、縦長の絵は画面の高さに合わせて出るので、
+   題字（「～あの日の声～」まで）は高さの上 36% ほどに来る。紹介文をその下へ送って題字に重ねない。
+   78px は上の余白 14px と紋章 64px（css/style.css と同じ値） */
+@media (orientation: portrait) and (max-width: 899px) {
+  body.theme-title.has-bg .title-lead { margin-top: max(10px, calc(38dvh - 78px - var(--safe-t, 0px))); }
+}
