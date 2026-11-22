@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-bg3-20261122`
-- PR：（作成後に追記）
+- PR：[#23](https://github.com/KurokiriChampr/web-game-pilot/pull/23)（マージはしていない）
 
 ## 1. 結果の要約
 
