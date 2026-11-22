@@ -6,7 +6,8 @@
     "bgm": null
   },
   "title": {
-    "image": "images/bg/title.webp"
+    "image": "images/bg/title.webp",
+    "bgm": "bgm/title.mp3"
   },
   "backgrounds": {
     "street": {
@@ -153,5 +154,141 @@
       }
     }
   },
-  "scenes": {}
+  "scenes": {
+    "p_morning": {
+      "bgm": "bgm/day.mp3"
+    },
+    "p_accident": {
+      "bgm": "bgm/day.mp3"
+    },
+    "p_dark": {
+      "bgm": "bgm/dark.mp3"
+    },
+    "c_wake": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_class": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_council": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_library": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "c_courtyard": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_search": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "c_festival": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "c_branch": {
+      "bgm": "bgm/night.mp3"
+    },
+    "h_1": {
+      "bgm": "bgm/night.mp3"
+    },
+    "h_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "end_harem": {
+      "bgm": "bgm/night.mp3"
+    },
+    "t_awake": {
+      "bgm": "bgm/true.mp3"
+    },
+    "t_fragments": {
+      "bgm": "bgm/dark.mp3"
+    },
+    "t_hospital": {
+      "bgm": "bgm/sad.mp3"
+    },
+    "t_plea": {
+      "bgm": "bgm/true.mp3"
+    },
+    "t_freeze": {
+      "bgm": "bgm/true.mp3"
+    },
+    "t_rescue": {
+      "bgm": "bgm/happy.mp3"
+    },
+    "end_true": {
+      "bgm": "bgm/happy.mp3"
+    },
+    "ren_1": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "ren_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "ren_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "end_normal_ren": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "end_bad_ren": {
+      "bgm": "bgm/sad.mp3"
+    },
+    "end_good_ren": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "tsukasa_1": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "tsukasa_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "tsukasa_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "end_normal_tsukasa": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "end_bad_tsukasa": {
+      "bgm": "bgm/sad.mp3"
+    },
+    "end_good_tsukasa": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "yota_1": {
+      "bgm": "bgm/night.mp3"
+    },
+    "yota_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "yota_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "end_normal_yota": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "end_bad_yota": {
+      "bgm": "bgm/sad.mp3"
+    },
+    "end_good_yota": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "sora_1": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "sora_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "end_normal_sora": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "end_bad_sora": {
+      "bgm": "bgm/sad.mp3"
+    },
+    "end_good_sora": {
+      "bgm": "bgm/evening.mp3"
+    }
+  }
 }
