@@ -27,6 +27,7 @@
 | `titleLines`／`subtitle`／`lead` | タイトル画面の文言。`build-work.js` は `lead` をつないで `<meta name="description">` に入れる（`--description` で上書き可） |
 | `hud.shards`／`hud.heart` | 上部の表示。`{ label, name }` で呼び名、`false` で隠す。`STORY.maxShards`／`maxAffection` が 0 でも隠れる |
 | `slots` | 手動セーブの数（1〜30、既定 3） |
+| `titleProgress` | タイトル画面の結末・既読の表示。既定 `"inline"`（そのまま並べる）、`"dialog"` で「進行状況」ボタンから開く（スマホで場所を取らない） |
 | `limits` | バックログの上限 `{ logEntries: 150, logPages: 600, rewindPoints: 40 }`。長編で変えたいときだけ |
 | `stepLabel` | 「第 n 幕」の呼び名を返す関数 `({ scene, steps, ending, chapter }) → 文字列`。章のあるシーンは何もしなくても章の題名になる |
 

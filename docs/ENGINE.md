@@ -44,6 +44,7 @@ ver 3.0-p4 時点。このリポジトリは「ノベルゲームのエンジン
 | `titleLines`／`subtitle`／`lead` |  | タイトル画面のロゴ（行ごとの配列）／小見出し／紹介文 |
 | `hud.shards`／`hud.heart` |  | `{ label, name }` で呼び名を変える。`false` で隠す（`STORY.maxShards`／`maxAffection` が 0 でも隠れる） |
 | `slots` |  | 手動セーブのスロット数（既定 3、1〜30） |
+| `titleProgress` |  | タイトル画面の「見つけたエンディング・読んだシーン」の出し方。既定 `"inline"`（タイトル画面に並べる）。`"dialog"` でタイトル画面に「進行状況」ボタンを出し、押したときに別の画面で見せる（記録の仕組みは同じ） |
 | `limits` |  | バックログの上限 `{ logEntries: 150, logPages: 600, rewindPoints: 40 }`（§4） |
 | `stepLabel` |  | 幕の呼び名を返す関数 `({ scene, steps, ending, chapter }) → 文字列` |
 
