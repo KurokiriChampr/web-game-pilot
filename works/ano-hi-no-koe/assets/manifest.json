@@ -170,32 +170,134 @@
     "c_class": {
       "bgm": "bgm/day.mp3"
     },
-    "c_council": {
-      "bgm": "bgm/day.mp3"
-    },
-    "c_library": {
-      "bgm": "bgm/evening.mp3"
-    },
     "c_courtyard": {
       "bgm": "bgm/day.mp3"
     },
-    "c_search": {
+    "c_courtyard_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_council": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_council_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_library": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_library_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_homeward": {
       "bgm": "bgm/evening.mp3"
     },
-    "c_festival": {
+    "c_homeward_after": {
       "bgm": "bgm/evening.mp3"
+    },
+    "c_search": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_search_alone": {
+      "bgm": "bgm/day.mp3"
+    },
+    "ren_1": {
+      "bgm": "bgm/day.mp3"
+    },
+    "ren_1_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "ren_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "ren_2_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "tsukasa_1": {
+      "bgm": "bgm/day.mp3"
+    },
+    "tsukasa_1_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "tsukasa_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "tsukasa_2_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "yota_1": {
+      "bgm": "bgm/day.mp3"
+    },
+    "yota_1_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "yota_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "yota_2_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "sora_1": {
+      "bgm": "bgm/day.mp3"
+    },
+    "sora_1_after": {
+      "bgm": "bgm/day.mp3"
+    },
+    "sora_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_2_after": {
+      "bgm": "bgm/night.mp3"
+    },
+    "c_festival": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_festival_after": {
+      "bgm": "bgm/day.mp3"
     },
     "c_branch": {
       "bgm": "bgm/night.mp3"
     },
-    "h_1": {
+    "ren_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "tsukasa_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "yota_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_3": {
       "bgm": "bgm/night.mp3"
     },
     "h_2": {
       "bgm": "bgm/night.mp3"
     },
-    "end_harem": {
-      "bgm": "bgm/night.mp3"
+    "c_afterfest": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_clue": {
+      "bgm": "bgm/day.mp3"
+    },
+    "c_final": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "fin_ren": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "fin_tsukasa": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "fin_yota": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "fin_sora": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "fin_onjin": {
+      "bgm": "bgm/evening.mp3"
+    },
+    "end_alone": {
+      "bgm": "bgm/sad.mp3"
     },
     "t_awake": {
       "bgm": "bgm/true.mp3"
@@ -218,15 +320,6 @@
     "end_true": {
       "bgm": "bgm/happy.mp3"
     },
-    "ren_1": {
-      "bgm": "bgm/evening.mp3"
-    },
-    "ren_2": {
-      "bgm": "bgm/night.mp3"
-    },
-    "ren_3": {
-      "bgm": "bgm/night.mp3"
-    },
     "end_normal_ren": {
       "bgm": "bgm/evening.mp3"
     },
@@ -235,15 +328,6 @@
     },
     "end_good_ren": {
       "bgm": "bgm/evening.mp3"
-    },
-    "tsukasa_1": {
-      "bgm": "bgm/evening.mp3"
-    },
-    "tsukasa_2": {
-      "bgm": "bgm/night.mp3"
-    },
-    "tsukasa_3": {
-      "bgm": "bgm/night.mp3"
     },
     "end_normal_tsukasa": {
       "bgm": "bgm/evening.mp3"
@@ -254,15 +338,6 @@
     "end_good_tsukasa": {
       "bgm": "bgm/evening.mp3"
     },
-    "yota_1": {
-      "bgm": "bgm/night.mp3"
-    },
-    "yota_2": {
-      "bgm": "bgm/night.mp3"
-    },
-    "yota_3": {
-      "bgm": "bgm/night.mp3"
-    },
     "end_normal_yota": {
       "bgm": "bgm/evening.mp3"
     },
@@ -271,15 +346,6 @@
     },
     "end_good_yota": {
       "bgm": "bgm/evening.mp3"
-    },
-    "sora_1": {
-      "bgm": "bgm/evening.mp3"
-    },
-    "sora_2": {
-      "bgm": "bgm/night.mp3"
-    },
-    "sora_3": {
-      "bgm": "bgm/night.mp3"
     },
     "end_normal_sora": {
       "bgm": "bgm/evening.mp3"
