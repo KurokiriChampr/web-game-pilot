@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-titlefix-20261125`
-- PR：（作成後に追記）（マージはしていない）
+- PR：[#28](https://github.com/KurokiriChampr/web-game-pilot/pull/28)（マージはしていない）
 
 ## 1. 結果の要約
 
