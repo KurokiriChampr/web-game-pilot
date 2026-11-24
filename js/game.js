@@ -1443,6 +1443,9 @@
     menu: function () {
       openDialog(els.menuDialog);
     },
+    progress: function () {
+      if (els.progressDialog) openDialog(els.progressDialog);
+    },
     peek: function () {
       closeAllDialogs();
       setPeek(true);
@@ -1488,6 +1491,9 @@
     endingList: "ending-list",
     endingCount: "ending-count",
     sceneRate: "scene-rate",
+    progressBtn: "title-progress-btn",
+    progressDialog: "progress-dialog",
+    progressBody: "progress-body",
     titleSub: "title-sub",
     titleMain: "title-main",
     titleLead: "title-lead",
@@ -1638,6 +1644,22 @@
     els.hudHeartLabel.textContent = HEART_LABEL;
     els.hudHeart.setAttribute("title", HEART_NAME);
     els.heartMeter.setAttribute("aria-label", HEART_NAME);
+    applyTitleProgress();
+  }
+
+  /**
+   * タイトル画面の「見つけたエンディング・読んだシーン」の出し方（WORK.titleProgress）。
+   * 既定（"inline"）はタイトル画面にそのまま並べる。"dialog" ではタイトル画面に「進行状況」ボタンを出し、
+   * 押したときに別の画面（progress-dialog）で見せる。中身の描き方（renderTitle）と記録の仕組みは同じで、
+   * 要素（.endings）をダイアログへ移すだけ。古い index.html で要素が無いときは従来どおり。
+   */
+  function applyTitleProgress() {
+    if (cfg("titleProgress", "inline") !== "dialog") return;
+    var section = els.titleScreen && els.titleScreen.querySelector(".endings");
+    if (!section || !els.progressBtn || !els.progressDialog || !els.progressBody) return;
+    els.progressBody.appendChild(section);
+    els.progressBtn.hidden = false;
+    els.titleScreen.classList.add("has-progress-dialog");
   }
 
   function init() {

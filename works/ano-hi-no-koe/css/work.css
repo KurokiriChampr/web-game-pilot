@@ -41,9 +41,15 @@ body.theme-title.has-bg .title-main {
     background-position: center top;
   }
 }
+/* ---------- 紋章（時計の文字盤）は出さない ----------
+   index.html の .title-emblem は本作『刻の女神と止まった世界』の意匠。この作品では題字の「H」に重なるので、作品側で隠す。 */
+.title-emblem { display: none; }
+
 /* 縦画面のレイアウト（css/style.css の同じ条件）では、縦長の絵は画面の高さに合わせて出るので、
    題字（「～あの日の声～」まで）は高さの上 36% ほどに来る。紹介文をその下へ送って題字に重ねない。
-   78px は上の余白 14px と紋章 64px（css/style.css と同じ値） */
+   14px は上の余白（css/style.css と同じ値。紋章は上で隠しているので数えない） */
 @media (orientation: portrait) and (max-width: 899px) {
-  body.theme-title.has-bg .title-lead { margin-top: max(10px, calc(38dvh - 78px - var(--safe-t, 0px))); }
+  body.theme-title.has-bg .title-lead { margin-top: max(10px, calc(38dvh - 14px - var(--safe-t, 0px))); }
+  /* 絵が無いときの文字のロゴも、紋章の分（64px）を詰めずに同じ高さに置く */
+  body.theme-title:not(.has-bg) .title-sub { margin-top: max(8px, calc(36.5dvh - 14px - var(--safe-t, 0px))); }
 }

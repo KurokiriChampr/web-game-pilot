@@ -14,7 +14,9 @@
     lead: ["転校初日の交差点で、私を助けてくれた人がいた。", "顔も知らないあの人を探して、私は星見学園で恋をする。"],
     // 好感度は人物ごとの変数（STORY.vars.aff）で持つ。HUD に出す仕組みが無いので、上部の表示は出さない
     hud: { shards: false, heart: false },
-    slots: 6
+    slots: 6,
+    // タイトル画面の「見つけたエンディング」はスマホで場所を取るので、「進行状況」ボタンから別の画面で開く
+    titleProgress: "dialog"
   };
   if (typeof module !== "undefined" && module.exports) module.exports = WORK;
   else root.WORK = WORK;

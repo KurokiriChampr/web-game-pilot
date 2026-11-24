@@ -80,6 +80,8 @@
         </button>
         <button id="title-load-btn" class="title-btn" type="button" data-action="load">ロード</button>
         <button id="title-settings-btn" class="title-btn" type="button" data-action="settings">設定</button>
+        <!-- 作品設定 WORK.titleProgress が "dialog" のときだけ出す。押すと下の「見つけたエンディング」を別の画面（progress-dialog）で開く -->
+        <button id="title-progress-btn" class="title-btn" type="button" data-action="progress" hidden>進行状況</button>
       </nav>
 
       <section class="endings" aria-labelledby="endings-heading">
@@ -297,6 +299,17 @@
         <button id="reset-data" class="btn btn-small" type="button" data-action="reset"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash"></use></svg>セーブと記録をすべて消去</button>
       </div>
       <p class="modal-note modal-version"><span id="settings-title">刻の女神と止まった世界</span>　<span id="settings-version">ver 3.0-p4</span></p>
+      <div class="modal-foot">
+        <button class="btn btn-small" type="button" data-close>閉じる</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 進行状況（WORK.titleProgress が "dialog" の作品だけ使う。タイトル画面の .endings をここへ移して開く） -->
+  <dialog id="progress-dialog" class="modal" aria-labelledby="progress-heading">
+    <div class="modal-body">
+      <h2 id="progress-heading" class="modal-title">進行状況</h2>
+      <div id="progress-body" class="progress-body"></div>
       <div class="modal-foot">
         <button class="btn btn-small" type="button" data-close>閉じる</button>
       </div>
