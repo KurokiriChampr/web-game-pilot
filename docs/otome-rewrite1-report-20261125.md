@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-rewrite1-20261125`
-- PR：（作成後に追記）（マージはしていない）
+- PR：[#29](https://github.com/KurokiriChampr/web-game-pilot/pull/29)（マージはしていない）
 - 元にしたプロット：`~/workspace/your_files/otome-plot-v2-20261125.md`（全文を読んだうえで作業した）
 
 ## 1. 結果の要約
