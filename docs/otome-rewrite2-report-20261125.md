@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-rewrite2-20261125`
-- PR：__PR__（マージはしていない）
+- PR：[#30](https://github.com/KurokiriChampr/web-game-pilot/pull/30)（マージはしていない）
 - 元の指示書：`~/workspace/your_files/otome-rewrite2-instruction-20261125.md`。前提資料のプロット案 `~/workspace/your_files/otome-plot-v2-20261125.md` と第1便の報告書 `docs/otome-rewrite1-report-20261125.md` は全文を読んだ
 - **作業の経緯**：前のセッションが本文・判定・エンジン修正・manifest まで書いたところで、VM の再起動により Playwright 検証の途中で消滅した。このセッションでは、残っていた未コミットの変更を点検し（最初から書き直してはいない）、検証一式・報告書・コミット・PR を行った。点検の結果、指示書 §1〜§5 は本文・判定とも書き終わっており、**書き足しが要る箇所は見つからなかった**ので、本文には手を入れていない
 
