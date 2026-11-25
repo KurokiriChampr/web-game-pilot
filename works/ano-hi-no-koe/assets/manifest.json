@@ -203,10 +203,16 @@
     "ren_1": {
       "bgm": "bgm/day.mp3"
     },
+    "ren_1_mid": {
+      "bgm": "bgm/day.mp3"
+    },
     "ren_1_after": {
       "bgm": "bgm/day.mp3"
     },
     "ren_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "ren_2_mid": {
       "bgm": "bgm/day.mp3"
     },
     "ren_2_after": {
@@ -215,10 +221,16 @@
     "tsukasa_1": {
       "bgm": "bgm/day.mp3"
     },
+    "tsukasa_1_mid": {
+      "bgm": "bgm/day.mp3"
+    },
     "tsukasa_1_after": {
       "bgm": "bgm/day.mp3"
     },
     "tsukasa_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "tsukasa_2_mid": {
       "bgm": "bgm/day.mp3"
     },
     "tsukasa_2_after": {
@@ -227,10 +239,16 @@
     "yota_1": {
       "bgm": "bgm/day.mp3"
     },
+    "yota_1_mid": {
+      "bgm": "bgm/day.mp3"
+    },
     "yota_1_after": {
       "bgm": "bgm/day.mp3"
     },
     "yota_2": {
+      "bgm": "bgm/day.mp3"
+    },
+    "yota_2_mid": {
       "bgm": "bgm/day.mp3"
     },
     "yota_2_after": {
@@ -239,10 +257,16 @@
     "sora_1": {
       "bgm": "bgm/day.mp3"
     },
+    "sora_1_mid": {
+      "bgm": "bgm/day.mp3"
+    },
     "sora_1_after": {
       "bgm": "bgm/day.mp3"
     },
     "sora_2": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_2_mid": {
       "bgm": "bgm/night.mp3"
     },
     "sora_2_after": {
@@ -260,13 +284,37 @@
     "ren_3": {
       "bgm": "bgm/night.mp3"
     },
+    "ren_3_mid": {
+      "bgm": "bgm/night.mp3"
+    },
+    "ren_3_after": {
+      "bgm": "bgm/night.mp3"
+    },
     "tsukasa_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "tsukasa_3_mid": {
+      "bgm": "bgm/night.mp3"
+    },
+    "tsukasa_3_after": {
       "bgm": "bgm/night.mp3"
     },
     "yota_3": {
       "bgm": "bgm/night.mp3"
     },
+    "yota_3_mid": {
+      "bgm": "bgm/night.mp3"
+    },
+    "yota_3_after": {
+      "bgm": "bgm/night.mp3"
+    },
     "sora_3": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_3_mid": {
+      "bgm": "bgm/night.mp3"
+    },
+    "sora_3_after": {
       "bgm": "bgm/night.mp3"
     },
     "h_2": {
