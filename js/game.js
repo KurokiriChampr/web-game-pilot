@@ -769,7 +769,8 @@
   function showEnding(scene) {
     els.endingName.textContent = scene.ending.name;
     els.endingBox.setAttribute("data-kind", scene.ending.kind);
-    var seen = seenEndings().length;
+    // タイトルの進行状況と同じく、シナリオに実在する結末だけを数える（旧版の記録に残る、今は無い結末 ID を数えない）
+    var seen = seenEndingIds().length;
     var total = endingTotal();
     els.endingProgress.textContent =
       "見つけたエンディング：" + seen + " / " + total +
