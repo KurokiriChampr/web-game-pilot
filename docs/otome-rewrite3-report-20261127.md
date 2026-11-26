@@ -97,7 +97,7 @@
 | `node tools/test-stage.js` | **OK：1,757,181 件の検査に合格** |
 | `node tools/verify-text.js` | **OK：表示テキスト列・選択肢・シーン属性は基準と完全一致**（基準は更新していない） |
 | `node .claude/skills/novel-work/scripts/build-work.js works/ano-hi-no-koe --out /tmp/ahk-rw3/build` | **OK：誤り 0・注意 0、73 ファイル**（第2便の 62 → 一枚絵 11 件増）。**無い素材の報告なし**。残る本作の部分は従来どおり（タイトル画面の紋章、版 3.0-p4） |
-| 本編 e2e（`NODE_PATH=/home/hatch/.pw-node/node_modules` で 1 本ずつ順に） | E2E_RESULT |
+| 本編 e2e（`NODE_PATH=/home/hatch/.pw-node/node_modules` で 1 本ずつ順に） | **すべて合格（終了コード 0）**：`e2e.js` 116 件、`e2e-phase2.js` 83 件、`e2e-p3.js` 433 件、`e2e-p4.js` 287 件、`e2e-p5.js` 66 件、`e2e-p6.js` 40 件、`e2e-p7.js` 25 件（第2便と同じ件数。`--old` の切り戻し確認は旧版フォルダが無いので付けていない） |
 
 ### 分岐の総当たり（`/tmp/ahk-rw3/sim.js`、一時スクリプト）
 
@@ -127,7 +127,7 @@
 | 空② `sora_2_after` | OK | OK |
 | グッド 蓮／司／陽太／空 | OK ×4 | OK ×4（23%／43%／58%／57%） |
 | 一人 `end_alone` | OK | OK |
-| トゥルー `end_true`（1 ページ目） | OK | PHONE_TRUE |
+| トゥルー `end_true`（1 ページ目） | OK | OK（55%） |
 | トゥルー 2 ページ目（絵が消えて晴希の立ち絵が 1 人出る） | OK | OK |
 | トゥルー「画面の向こうのあなた」以降（絵に戻り、立ち絵 0 人） | OK | OK |
 
