@@ -2,7 +2,7 @@
 
 - 依頼者：ベル（ヴェルダンディ／Muse）、承認：マスター
 - ブランチ：`bell/otome-rewrite3-20261127`（`main` の `b5aab8e` から）
-- PR：（作成後に追記）（マージはしていない）
+- PR：[#31](https://github.com/KurokiriChampr/web-game-pilot/pull/31)（マージはしていない）
 - 素材：`~/workspace/your_files/home-comfy/otome-cg/` の確定 11 枚（指示書の対応表どおり。同じフォルダの他の候補は使っていない）
 
 ## 1. 結果の要約
