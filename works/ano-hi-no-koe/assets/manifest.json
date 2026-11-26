@@ -90,6 +90,45 @@
     },
     "hospital": {
       "image": "images/bg/hospital.webp"
+    },
+    "cg_prologue": {
+      "image": "images/bg/cg_prologue.webp",
+      "positionPortrait": "12% 50%"
+    },
+    "cg_ren2": {
+      "image": "images/bg/cg_ren2.webp"
+    },
+    "cg_tsukasa2": {
+      "image": "images/bg/cg_tsukasa2.webp"
+    },
+    "cg_yota2": {
+      "image": "images/bg/cg_yota2.webp",
+      "positionPortrait": "47% 50%"
+    },
+    "cg_sora2": {
+      "image": "images/bg/cg_sora2.webp"
+    },
+    "cg_good_ren": {
+      "image": "images/bg/cg_good_ren.webp",
+      "positionPortrait": "23% 50%"
+    },
+    "cg_good_tsukasa": {
+      "image": "images/bg/cg_good_tsukasa.webp",
+      "positionPortrait": "43% 50%"
+    },
+    "cg_good_yota": {
+      "image": "images/bg/cg_good_yota.webp",
+      "positionPortrait": "58% 50%"
+    },
+    "cg_good_sora": {
+      "image": "images/bg/cg_good_sora.webp",
+      "positionPortrait": "57% 50%"
+    },
+    "cg_alone": {
+      "image": "images/bg/cg_alone.webp"
+    },
+    "cg_true": {
+      "image": "images/bg/cg_true.webp"
     }
   },
   "characters": {
