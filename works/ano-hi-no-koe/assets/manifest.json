@@ -128,7 +128,8 @@
       "image": "images/bg/cg_alone.webp"
     },
     "cg_true": {
-      "image": "images/bg/cg_true.webp"
+      "image": "images/bg/cg_true.webp",
+      "positionPortrait": "55% 50%"
     }
   },
   "characters": {
